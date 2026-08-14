@@ -1,0 +1,33 @@
+import { redirect } from "next/navigation";
+import Image from "next/image";
+import { ClipboardCheck, Database, ShieldCheck } from "lucide-react";
+import { LoginForm } from "@/components/login-form";
+import { destinationForUser, getCurrentUser } from "@/lib/auth";
+import { siteConfig } from "@/lib/site-config";
+
+export default async function LoginPage() {
+  const user = await getCurrentUser();
+  if (user) redirect(destinationForUser(user));
+  return (
+    <main className="login-page">
+      <section className="login-identity">
+        <div className="login-brand"><span><Image src={siteConfig.logoPath} alt={`Logo ${siteConfig.schoolName}`} width={42} height={42} priority /></span><div><strong>{siteConfig.schoolName}</strong><small>{siteConfig.productName}</small></div></div>
+        <div className="login-copy">
+          <span className="eyebrow light">OPERASIONAL SEKOLAH</span>
+          <h1>Kehadiran tercatat.<br />Tindak lanjut terarah.</h1>
+          <p>Satu ruang kerja untuk guru piket memantau ketidakhadiran, menjaga koordinasi, dan menyiapkan rekap sekolah.</p>
+        </div>
+        <div className="trust-row"><span><ShieldCheck /> Akses berbasis peran</span><span><Database /> PostgreSQL aman</span><span><ClipboardCheck /> Jejak audit</span></div>
+      </section>
+      <section className="login-panel">
+        <div className="login-card">
+          <span className="environment-badge">LINGKUNGAN INTERNAL</span>
+          <h2>Masuk ke meja piket</h2>
+          <p>Gunakan akun yang didaftarkan oleh Admin IT sekolah.</p>
+          <LoginForm />
+          <p className="login-note">Sesi dilindungi cookie HTTP-only dan berakhir otomatis setelah tujuh hari.</p>
+        </div>
+      </section>
+    </main>
+  );
+}

@@ -1,0 +1,48 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1786694430305,
+      "tag": "0000_panoramic_polaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786697448672,
+      "tag": "0001_wakeful_redwing",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786699624951,
+      "tag": "0002_outstanding_kronos",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786704024702,
+      "tag": "0003_outstanding_scarlet_witch",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786709364929,
+      "tag": "0004_chief_wendell_rand",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786712115103,
+      "tag": "0005_chilly_shiver_man",
+      "breakpoints": true
+    }
+  ]
+}

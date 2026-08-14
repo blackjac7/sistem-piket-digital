@@ -1,0 +1,48 @@
+{
+  "name": "smp-ip-yakin-piket",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "tsx scripts/seed.ts",
+    "db:studio": "drizzle-kit studio",
+    "account:recover": "tsx scripts/recover-admin.ts"
+  },
+  "dependencies": {
+    "@node-rs/argon2": "^2.1.0",
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.2",
+    "@tailwindcss/postcss": "latest",
+    "bcryptjs": "latest",
+    "clsx": "latest",
+    "date-fns": "latest",
+    "drizzle-orm": "latest",
+    "exceljs": "^4.4.0",
+    "lucide-react": "latest",
+    "next": "latest",
+    "postgres": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "tailwind-merge": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "drizzle-kit": "latest",
+    "eslint": "latest",
+    "eslint-config-next": "latest",
+    "tailwindcss": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
+  }
+}

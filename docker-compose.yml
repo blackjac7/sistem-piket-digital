@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: smp-ip-yakin-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smp_ip_yakin
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - smp_ip_yakin_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d smp_ip_yakin"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  smp_ip_yakin_data:
