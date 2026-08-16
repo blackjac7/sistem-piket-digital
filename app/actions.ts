@@ -9,6 +9,7 @@ import { academicYears, attendanceRecords, auditLogs, dutyCompletions, dutySched
 import { createSession, deleteSession, destinationForUser, requireAdmin, requireRoles, requireUser } from "@/lib/auth";
 import { loadWorkbook } from "@/lib/excel";
 import { generateTemporaryPassword, hashPassword, needsPasswordRehash, validateNewPassword, verifyPassword } from "@/lib/password";
+import { normalizeTeacherName, usernameFromTeacherName, usernamePattern } from "@/lib/teacher-names";
 
 export type ActionState = { error?: string; success?: string; temporaryPassword?: string; accountName?: string };
 
@@ -227,42 +228,94 @@ const teacherSchema = z.object({
   employeeNumber: z.string().trim().max(40).optional(),
   phone: z.string().trim().max(30).optional(),
   subject: z.string().trim().max(80).optional(),
-  isDutyTeacher: z.string().optional(),
 });
 
 export async function createTeacherAction(_: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireAdmin();
   const parsed = teacherSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const name = normalizeTeacherName(parsed.data.name);
   const [teacher] = await db.insert(teachers).values({
-    name: parsed.data.name,
+    name,
     employeeNumber: parsed.data.employeeNumber || null,
     phone: parsed.data.phone || null,
     subject: parsed.data.subject || null,
-    isDutyTeacher: parsed.data.isDutyTeacher === "on",
   }).returning({ id: teachers.id });
-  await db.insert(auditLogs).values({ userId: user.id, action: "CREATE", entity: "TEACHER", entityId: String(teacher.id), description: `Menambahkan guru ${parsed.data.name}.` });
+  await db.insert(auditLogs).values({ userId: user.id, action: "CREATE", entity: "TEACHER", entityId: String(teacher.id), description: `Menambahkan guru ${name}.` });
   revalidatePath("/teachers");
   return { success: "Guru berhasil ditambahkan." };
 }
 
-export async function toggleDutyTeacherAction(formData: FormData) {
-  const user = await requireAdmin();
-  const id = z.coerce.number().int().positive().parse(formData.get("id"));
-  const current = await db.select({ isDutyTeacher: teachers.isDutyTeacher, name: teachers.name }).from(teachers).where(eq(teachers.id, id)).limit(1);
-  if (!current[0]) return;
-  const becomesDutyTeacher = !current[0].isDutyTeacher;
-  await db.update(teachers).set({ isDutyTeacher: becomesDutyTeacher, updatedAt: new Date() }).where(eq(teachers.id, id));
-  const account = await db.select({ id: users.id }).from(users).where(eq(users.teacherId, id)).limit(1);
-  if (account[0]) {
-    await db.update(users).set({ role: becomesDutyTeacher ? "GURU_PIKET" : "GURU", isActive: true, updatedAt: new Date() }).where(eq(users.id, account[0].id));
-  } else if (becomesDutyTeacher) {
-    const passwordHash = await hashPassword(generateTemporaryPassword());
-    await db.insert(users).values({ teacherId: id, name: current[0].name, username: `piket${String(id).padStart(2, "0")}`, passwordHash, role: "GURU_PIKET", mustChangePassword: true });
+const dutyTeacherSchema = z.object({
+  teacherId: z.coerce.number().int().positive(),
+  username: z.string().trim().toLowerCase().refine((value) => usernamePattern.test(value), "Username harus 3-60 karakter dan hanya boleh berisi huruf kecil, angka, titik, garis bawah, atau tanda hubung."),
+});
+
+export async function setDutyTeacherAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  const admin = await requireAdmin();
+  const parsed = dutyTeacherSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  const [teacher] = await db.select({ id: teachers.id, name: teachers.name, isActive: teachers.isActive }).from(teachers).where(eq(teachers.id, parsed.data.teacherId)).limit(1);
+  if (!teacher || !teacher.isActive) return { error: "Guru tidak ditemukan atau sudah tidak aktif." };
+
+  const [account] = await db.select({ id: users.id, username: users.username }).from(users).where(eq(users.teacherId, teacher.id)).limit(1);
+  const [usernameOwner] = await db.select({ id: users.id }).from(users).where(eq(users.username, parsed.data.username)).limit(1);
+  if (usernameOwner && usernameOwner.id !== account?.id) return { error: `Username @${parsed.data.username} sudah digunakan akun lain.` };
+
+  let temporaryPassword: string | undefined;
+  try {
+    await db.transaction(async (tx) => {
+      await tx.update(teachers).set({ isDutyTeacher: true, updatedAt: new Date() }).where(eq(teachers.id, teacher.id));
+      if (account) {
+        await tx.update(users).set({ name: teacher.name, username: parsed.data.username, role: "GURU_PIKET", isActive: true, updatedAt: new Date() }).where(eq(users.id, account.id));
+      } else {
+        temporaryPassword = generateTemporaryPassword();
+        const passwordHash = await hashPassword(temporaryPassword);
+        await tx.insert(users).values({ teacherId: teacher.id, name: teacher.name, username: parsed.data.username, passwordHash, role: "GURU_PIKET", mustChangePassword: true });
+      }
+      await tx.insert(auditLogs).values({ userId: admin.id, action: "UPDATE", entity: "TEACHER", entityId: String(teacher.id), description: `${teacher.name} ditetapkan sebagai guru piket dengan username @${parsed.data.username}.` });
+    });
+  } catch {
+    return { error: "Username gagal disimpan. Pastikan username belum digunakan akun lain." };
   }
-  await db.insert(auditLogs).values({ userId: user.id, action: "UPDATE", entity: "TEACHER", entityId: String(id), description: `${current[0].name} ${!current[0].isDutyTeacher ? "ditetapkan" : "dihapus"} sebagai guru piket.` });
+
   revalidatePath("/teachers");
+  revalidatePath(`/teachers/${teacher.id}`);
   revalidatePath("/schedule");
+  revalidatePath("/accounts");
+  return {
+    success: account ? `Username ${teacher.name} berhasil diperbarui.` : `${teacher.name} berhasil ditetapkan sebagai guru piket.`,
+    temporaryPassword,
+    accountName: teacher.name,
+  };
+}
+
+export async function removeDutyTeacherAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  const admin = await requireAdmin();
+  const id = z.coerce.number().int().positive().safeParse(formData.get("teacherId"));
+  if (!id.success) return { error: "Guru tidak valid." };
+  const [teacher] = await db.select({ id: teachers.id, name: teachers.name, isDutyTeacher: teachers.isDutyTeacher }).from(teachers).where(eq(teachers.id, id.data)).limit(1);
+  if (!teacher) return { error: "Guru tidak ditemukan." };
+  if (!teacher.isDutyTeacher) return { success: `${teacher.name} sudah berstatus guru reguler.` };
+  const [account] = await db.select({ id: users.id }).from(users).where(eq(users.teacherId, teacher.id)).limit(1);
+  const now = new Date();
+
+  await db.transaction(async (tx) => {
+    await tx.update(teachers).set({ isDutyTeacher: false, updatedAt: now }).where(eq(teachers.id, teacher.id));
+    await tx.update(dutySchedules).set({ isActive: false, inactiveAt: now }).where(and(eq(dutySchedules.teacherId, teacher.id), eq(dutySchedules.isActive, true)));
+    if (account) {
+      await tx.update(users).set({ role: "GURU", isActive: false, updatedAt: now }).where(eq(users.id, account.id));
+      await tx.delete(sessions).where(eq(sessions.userId, account.id));
+    }
+    await tx.insert(auditLogs).values({ userId: admin.id, action: "DEACTIVATE", entity: "TEACHER", entityId: String(teacher.id), description: `Melepas status guru piket ${teacher.name}, menonaktifkan akun operasional, dan menutup jadwal aktifnya.` });
+  });
+
+  revalidatePath("/teachers");
+  revalidatePath(`/teachers/${teacher.id}`);
+  revalidatePath("/schedule");
+  revalidatePath("/accounts");
+  return { success: `${teacher.name} sudah dilepas dari tugas guru piket.` };
 }
 
 export async function updateTeacherAction(_: ActionState, formData: FormData): Promise<ActionState> {
@@ -270,15 +323,16 @@ export async function updateTeacherAction(_: ActionState, formData: FormData): P
   const id = z.coerce.number().int().positive().safeParse(formData.get("id"));
   const parsed = teacherSchema.safeParse(Object.fromEntries(formData));
   if (!id.success || !parsed.success) return { error: parsed.success ? "ID guru tidak valid." : parsed.error.issues[0].message };
+  const name = normalizeTeacherName(parsed.data.name);
   await db.update(teachers).set({
-    name: parsed.data.name,
+    name,
     employeeNumber: parsed.data.employeeNumber || null,
     phone: parsed.data.phone || null,
     subject: parsed.data.subject || null,
     updatedAt: new Date(),
   }).where(eq(teachers.id, id.data));
-  await db.update(users).set({ name: parsed.data.name, updatedAt: new Date() }).where(eq(users.teacherId, id.data));
-  await db.insert(auditLogs).values({ userId: user.id, action: "UPDATE", entity: "TEACHER", entityId: String(id.data), description: `Memperbarui data guru ${parsed.data.name}.` });
+  await db.update(users).set({ name, updatedAt: new Date() }).where(eq(users.teacherId, id.data));
+  await db.insert(auditLogs).values({ userId: user.id, action: "UPDATE", entity: "TEACHER", entityId: String(id.data), description: `Memperbarui data guru ${name}.` });
   revalidatePath("/teachers");
   revalidatePath(`/teachers/${id.data}`);
   return { success: "Data guru berhasil diperbarui." };
@@ -384,22 +438,37 @@ export async function importTeachersAction(_: ActionState, formData: FormData): 
       if (number === 1) return;
       const values = [1, 2, 3, 4, 5, 6].map((column) => String(row.getCell(column).text || "").trim());
       if (!values.some(Boolean)) return;
-      const [employeeNumber, name, subject, phone, duty, username] = values;
+      const [employeeNumber, rawName, subject, phone, duty, username] = values;
+      const name = normalizeTeacherName(rawName);
       if (!employeeNumber || !name || !["YA", "TIDAK"].includes(duty.toUpperCase())) { errors.push(`Baris ${number}: NIP/NUPTK, nama, dan status guru piket wajib valid.`); return; }
-      parsed.push({ employeeNumber, name, subject: subject || null, phone: phone || null, isDutyTeacher: duty.toUpperCase() === "YA", username: username ? username.toLowerCase() : null });
+      const isDutyTeacher = duty.toUpperCase() === "YA";
+      const accountUsername = isDutyTeacher ? (username.toLowerCase() || usernameFromTeacherName(name)) : null;
+      if (accountUsername && !usernamePattern.test(accountUsername)) { errors.push(`Baris ${number}: format username tidak valid.`); return; }
+      parsed.push({ employeeNumber, name, subject: subject || null, phone: phone || null, isDutyTeacher, username: accountUsername });
     });
     if (errors.length) return { error: errors.slice(0, 5).join(" ") };
     if (!parsed.length) return { error: "File tidak memiliki baris data guru." };
     if (new Set(parsed.map((item) => item.employeeNumber)).size !== parsed.length) return { error: "Terdapat NIP/NUPTK ganda di dalam file." };
+    const importedUsernames = parsed.flatMap((item) => item.username ? [item.username] : []);
+    if (new Set(importedUsernames).size !== importedUsernames.length) return { error: "Terdapat username guru piket ganda di dalam file." };
     await db.transaction(async (tx) => {
-      for (const [index, item] of parsed.entries()) {
+      for (const item of parsed) {
         const existing = await tx.select({ id: teachers.id }).from(teachers).where(eq(teachers.employeeNumber, item.employeeNumber)).limit(1);
         let teacherId: number;
         if (existing[0]) { teacherId = existing[0].id; await tx.update(teachers).set({ name: item.name, subject: item.subject, phone: item.phone, isDutyTeacher: item.isDutyTeacher, isActive: true, updatedAt: new Date() }).where(eq(teachers.id, teacherId)); }
         else { const [created] = await tx.insert(teachers).values({ employeeNumber: item.employeeNumber, name: item.name, subject: item.subject, phone: item.phone, isDutyTeacher: item.isDutyTeacher }).returning({ id: teachers.id }); teacherId = created.id; }
         const account = await tx.select({ id: users.id }).from(users).where(eq(users.teacherId, teacherId)).limit(1);
-        if (account[0]) await tx.update(users).set({ name: item.name, role: item.isDutyTeacher ? "GURU_PIKET" : "GURU", updatedAt: new Date() }).where(eq(users.id, account[0].id));
-        else if (item.isDutyTeacher) await tx.insert(users).values({ teacherId, name: item.name, username: item.username || `piket${String(teacherId || index + 1).padStart(2, "0")}`, passwordHash: await hashPassword(generateTemporaryPassword()), role: "GURU_PIKET", mustChangePassword: true });
+        if (item.isDutyTeacher && item.username) {
+          const [usernameOwner] = await tx.select({ id: users.id }).from(users).where(eq(users.username, item.username)).limit(1);
+          if (usernameOwner && usernameOwner.id !== account[0]?.id) throw new Error(`Username @${item.username} sudah digunakan akun lain.`);
+        }
+        if (account[0]) {
+          await tx.update(users).set({ name: item.name, username: item.username || undefined, role: item.isDutyTeacher ? "GURU_PIKET" : "GURU", isActive: item.isDutyTeacher, updatedAt: new Date() }).where(eq(users.id, account[0].id));
+          if (!item.isDutyTeacher) await tx.delete(sessions).where(eq(sessions.userId, account[0].id));
+        } else if (item.isDutyTeacher && item.username) {
+          await tx.insert(users).values({ teacherId, name: item.name, username: item.username, passwordHash: await hashPassword(generateTemporaryPassword()), role: "GURU_PIKET", mustChangePassword: true });
+        }
+        if (!item.isDutyTeacher) await tx.update(dutySchedules).set({ isActive: false, inactiveAt: new Date() }).where(and(eq(dutySchedules.teacherId, teacherId), eq(dutySchedules.isActive, true)));
       }
       await tx.insert(auditLogs).values({ userId: user.id, action: "IMPORT", entity: "TEACHER", description: `Mengimpor atau memperbarui ${parsed.length} guru dari Excel.` });
     });

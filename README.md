@@ -4,14 +4,15 @@ Aplikasi operasional sekolah berbasis Next.js, TypeScript, PostgreSQL, dan Drizz
 
 ## Data awal
 
-- 22 data guru sementara (`Guru 01` sampai `Guru 22`) agar dapat diganti dengan nama sebenarnya.
-- Lima guru pertama ditetapkan sebagai guru piket.
+- 22 nama guru sekolah dari laporan Google Form lama.
+- Lima guru piket ditetapkan sesuai jadwal Senin-Jumat: Siti Humairoh, Intan Maharani, Megawati, Wiwi Rohayati, dan Umi Sultra.
 - 16 kelas: `7A-7D`, `8A-8G`, dan `9A-9E`.
 - Delapan nama siswa demo per kelas. Ganti sekaligus melalui menu **Data siswa** sebelum penggunaan nyata.
 - Jadwal awal Senin-Jumat, satu guru piket per hari.
 - Akun Admin IT: `admin` / `SMPYakin#2026`.
 - Akun Wakasek Kurikulum: `kurikulum` / `SMPYakin#2026`.
-- Akun guru piket: `piket01` sampai `piket05`, dengan kata sandi sementara yang sama.
+- Akun guru piket awal: `sitihumairoh`, `intanmaharani`, `megawati`, `wiwirohayati`, dan `umisultra`, dengan kata sandi sementara yang sama.
+- 23 catatan absensi guru hasil migrasi 18 respons Google Form; respons ganda pada tanggal yang sama diringkas memakai respons terakhir.
 
 Seluruh akun awal wajib membuat kata sandi pribadi setelah login pertama. Kata sandi sementara hanya dipakai untuk aktivasi awal.
 

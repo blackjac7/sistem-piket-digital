@@ -207,6 +207,7 @@ td strong { color: var(--ink); }
 .teacher-summary dl div { padding: 12px 0; border-bottom: 1px solid var(--line); }
 .teacher-summary dt { color: var(--muted); font-size: 10px; }
 .teacher-summary dd { margin: 4px 0 0; color: var(--ink); }
+.teacher-duty-actions { margin-top: 16px; display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; }
 .schedule-board { padding: 9px 18px 19px; }
 .schedule-day { padding: 12px 0; border-bottom: 1px solid var(--line); }
 .schedule-day:last-child { border-bottom: 0; }

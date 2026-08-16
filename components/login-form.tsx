@@ -30,7 +30,7 @@ export function LoginForm() {
     <form action={login} className="login-form">
       <label className="field">
         <span>Username</span>
-        <span className="input-icon"><UserRound aria-hidden="true" /><input ref={usernameRef} name="username" autoComplete="username webauthn" placeholder="piket01" required /></span>
+        <span className="input-icon"><UserRound aria-hidden="true" /><input ref={usernameRef} name="username" autoComplete="username webauthn" placeholder="sitihumairoh" required /></span>
       </label>
       <PasswordField label="Kata sandi" name="password" autoComplete="current-password" />
       {error && <p className="form-message error" role="alert">{error}</p>}
