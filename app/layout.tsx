@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { NavigationLoading } from "@/components/navigation-loading";
 import { siteConfig } from "@/lib/site-config";
 
 const geist = Geist({ variable: "--font-sans", subsets: ["latin"] });
@@ -17,5 +19,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="id"><body className={`${geist.variable} ${geistMono.variable}`}>{children}</body></html>;
+  return <html lang="id"><body className={`${geist.variable} ${geistMono.variable}`}><Suspense fallback={null}><NavigationLoading /></Suspense>{children}</body></html>;
 }

@@ -19,6 +19,7 @@ export function LoginForm() {
         setError(result.error || "Login gagal diproses. Coba kembali.");
         return;
       }
+      window.dispatchEvent(new CustomEvent("app-loading-start", { detail: { label: "Menyiapkan ruang kerja" } }));
       window.location.assign(result.redirectTo);
     } catch {
       setError("Tidak dapat terhubung ke server. Coba kembali.");
@@ -35,7 +36,7 @@ export function LoginForm() {
       {error && <p className="form-message error" role="alert">{error}</p>}
       <PasskeyLoginButton getUsername={() => usernameRef.current?.value || ""} />
       <div className="login-divider"><span>atau gunakan password</span></div>
-      <SubmitButton className="w-full">Masuk dengan password</SubmitButton>
+      <SubmitButton className="w-full" pendingLabel="Memverifikasi akun...">Masuk dengan password</SubmitButton>
     </form>
   );
 }

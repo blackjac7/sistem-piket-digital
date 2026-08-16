@@ -2,6 +2,7 @@ import Image from "next/image";
 import { KeyRound, LogOut, ShieldCheck } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { PasswordChangeForm } from "@/components/password-change-form";
+import { SubmitButton } from "@/components/submit-button";
 import { requireUser } from "@/lib/auth";
 import { siteConfig } from "@/lib/site-config";
 
@@ -20,7 +21,7 @@ export default async function PasswordPage() {
           <p>{user.mustChangePassword ? "Kata sandi sementara hanya untuk masuk pertama kali. Ganti sekarang sebelum melanjutkan ke sistem." : "Masukkan kata sandi saat ini untuk memastikan perubahan dilakukan oleh Anda."}</p>
           <ul className="password-guidance"><li>Minimal 8 karakter</li><li>Hindari nama, username, dan kata sandi lama</li><li>Setelah disimpan, sesi lain otomatis keluar</li></ul>
           <PasswordChangeForm />
-          <form action={logoutAction} className="account-logout"><button className="button button-ghost" type="submit"><LogOut /> Keluar dan ganti nanti</button></form>
+          <form action={logoutAction} className="account-logout"><SubmitButton className="button-ghost" pendingLabel="Mengakhiri sesi..."><LogOut /> Keluar dan ganti nanti</SubmitButton></form>
         </div>
       </section>
     </main>

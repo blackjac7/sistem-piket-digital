@@ -4,6 +4,7 @@ import { AlertCircle, ArrowRight, CalendarDays, CheckCircle2, ClipboardPlus, Gra
 import { completeDutyAction } from "@/app/actions";
 import { PageHeader } from "@/components/page-header";
 import { StatusPill } from "@/components/status-pill";
+import { SubmitButton } from "@/components/submit-button";
 import { db } from "@/db";
 import { attendanceRecords, dutyCompletions, dutySchedules, teachers, users } from "@/db/schema";
 import { requireRoles } from "@/lib/auth";
@@ -32,7 +33,7 @@ export default async function DashboardPage() {
 
   return <>
     <PageHeader title="Ringkasan hari ini" description={`${formatDateId(today)} · Kondisi operasional SMP IP YAKIN`} action={user.role === "ADMIN" || user.role === "GURU_PIKET" ? <Link href="/attendance" className="button button-primary"><ClipboardPlus /> Catat absensi</Link> : undefined} />
-    {user.role === "GURU_PIKET" && <section className={`duty-check-card ${ownDuty?.completedAt ? "completed" : ""}`}><span className="stat-icon green"><CheckCircle2 /></span><div><strong>{ownDuty ? `Tugas piket ${ownDuty.shift.toLowerCase()}` : "Tidak ada jadwal piket hari ini"}</strong><small>{ownDuty?.completedAt ? `Sudah selesai pada ${formatDateTimeId(ownDuty.completedAt)}` : ownDuty ? "Setelah seluruh pencatatan selesai, tutup tugas dengan satu klik." : "Hubungi Admin IT jika jadwal belum sesuai."}</small></div>{ownDuty && !ownDuty.completedAt && <form action={completeDutyAction}><input type="hidden" name="scheduleId" value={ownDuty.id} /><button className="button button-primary">Tugas piket selesai</button></form>}{ownDuty?.completedAt && <StatusPill tone="success">Selesai</StatusPill>}</section>}
+    {user.role === "GURU_PIKET" && <section className={`duty-check-card ${ownDuty?.completedAt ? "completed" : ""}`}><span className="stat-icon green"><CheckCircle2 /></span><div><strong>{ownDuty ? `Tugas piket ${ownDuty.shift.toLowerCase()}` : "Tidak ada jadwal piket hari ini"}</strong><small>{ownDuty?.completedAt ? `Sudah selesai pada ${formatDateTimeId(ownDuty.completedAt)}` : ownDuty ? "Setelah seluruh pencatatan selesai, tutup tugas dengan satu klik." : "Hubungi Admin IT jika jadwal belum sesuai."}</small></div>{ownDuty && !ownDuty.completedAt && <form action={completeDutyAction}><input type="hidden" name="scheduleId" value={ownDuty.id} /><SubmitButton pendingLabel="Menutup tugas...">Tugas piket selesai</SubmitButton></form>}{ownDuty?.completedAt && <StatusPill tone="success">Selesai</StatusPill>}</section>}
     <section className="stat-grid">{stats.map(({ label, value, detail, icon: Icon, tone }) => <article className="stat-card" key={label}><span className={`stat-icon ${tone}`}><Icon /></span><div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div></article>)}</section>
     <section className="dashboard-grid">
       <article className="panel wide">

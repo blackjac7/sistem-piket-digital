@@ -3,6 +3,7 @@ import { LogOut, ShieldCheck } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { roleLabels, siteConfig } from "@/lib/site-config";
 import { MainNav } from "./main-nav";
+import { SubmitButton } from "./submit-button";
 
 export function AppShell({ user, children }: { user: { name: string; username: string; role: string }; children: React.ReactNode }) {
   return (
@@ -14,7 +15,7 @@ export function AppShell({ user, children }: { user: { name: string; username: s
         <div className="sidebar-user">
           <span className="avatar">{user.name.split(" ").map((word) => word[0]).join("").slice(0, 2)}</span>
           <span><strong>{user.name}</strong><small>{roleLabels[user.role] || user.role.replaceAll("_", " ")}</small></span>
-          <form action={logoutAction}><button title="Keluar" className="icon-button"><LogOut /></button></form>
+          <form action={logoutAction}><SubmitButton className="icon-button" title="Keluar" ariaLabel="Keluar" pendingLabel=""><LogOut /></SubmitButton></form>
         </div>
       </aside>
       <main className="main-area" id="main-content" tabIndex={-1}>

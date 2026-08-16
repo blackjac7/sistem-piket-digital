@@ -1,7 +1,9 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { LoaderCircle, Trash2 } from "lucide-react";
+import { useFormStatus } from "react-dom";
 
 export function ConfirmSubmitButton({ message, label = "Hapus" }: { message: string; label?: string }) {
-  return <button className="icon-button danger" title={label} aria-label={label} onClick={(event) => { if (!window.confirm(message)) event.preventDefault(); }}><Trash2 aria-hidden="true" /></button>;
+  const { pending } = useFormStatus();
+  return <button className="icon-button danger" title={pending ? "Menghapus..." : label} aria-label={pending ? "Menghapus..." : label} aria-busy={pending} disabled={pending} onClick={(event) => { if (!window.confirm(message)) event.preventDefault(); }}>{pending ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <Trash2 aria-hidden="true" />}</button>;
 }
