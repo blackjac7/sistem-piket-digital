@@ -18,7 +18,7 @@ export default async function PasswordPage() {
           <span className="eyebrow"><ShieldCheck /> KEAMANAN AKUN</span>
           <h1>{user.mustChangePassword ? "Buat kata sandi pribadi" : "Ubah kata sandi"}</h1>
           <p>{user.mustChangePassword ? "Kata sandi sementara hanya untuk masuk pertama kali. Ganti sekarang sebelum melanjutkan ke sistem." : "Masukkan kata sandi saat ini untuk memastikan perubahan dilakukan oleh Anda."}</p>
-          <ul className="password-guidance"><li>Minimal 12 karakter</li><li>Hindari nama, username, dan kata sandi lama</li><li>Setelah disimpan, sesi lain otomatis keluar</li></ul>
+          <ul className="password-guidance"><li>Minimal 8 karakter</li><li>Hindari nama, username, dan kata sandi lama</li><li>Setelah disimpan, sesi lain otomatis keluar</li></ul>
           <PasswordChangeForm />
           <form action={logoutAction} className="account-logout"><button className="button button-ghost" type="submit"><LogOut /> Keluar dan ganti nanti</button></form>
         </div>

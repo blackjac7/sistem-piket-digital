@@ -124,7 +124,7 @@ Admin IT membuka menu **Manajemen akun** untuk mereset akun guru atau Wakasek. S
 
 Admin IT tidak menetapkan atau mengetahui kata sandi permanen pengguna lain. Pengguna wajib mengganti kata sandi sementara saat login berikutnya. Untuk mengubah kata sandi akun sendiri, buka **Keamanan login**; kata sandi saat ini wajib diverifikasi dan semua sesi lain otomatis dicabut setelah perubahan berhasil.
 
-Kata sandi baru minimal 12 karakter dan maksimal 128 karakter. Gunakan frasa sandi unik atau password manager. Sistem menolak kata sandi yang memuat username, bagian nama pengguna, atau kata sandi awal yang umum.
+Kata sandi baru minimal 8 karakter dan maksimal 128 karakter. Gunakan frasa sandi unik atau password manager. Sistem menolak kata sandi yang memuat username, bagian nama pengguna, atau kata sandi awal yang umum.
 
 ### Pemulihan darurat Admin IT
 

@@ -53,7 +53,7 @@ export function generateTemporaryPassword(length = 20) {
 }
 
 export function validateNewPassword(password: string, user: { username: string; name: string }) {
-  if (password.length < 12) return "Kata sandi baru minimal 12 karakter.";
+  if (password.length < 8) return "Kata sandi baru minimal 8 karakter.";
   if (password.length > 128) return "Kata sandi baru maksimal 128 karakter.";
   const normalized = password.toLocaleLowerCase("id-ID");
   if (COMMON_PASSWORDS.has(normalized)) return "Kata sandi ini terlalu mudah ditebak. Gunakan frasa sandi yang unik.";
