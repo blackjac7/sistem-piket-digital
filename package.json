@@ -12,7 +12,8 @@
     "db:reset": "tsx scripts/reset-database.ts",
     "db:seed": "tsx scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
-    "account:recover": "tsx scripts/recover-admin.ts"
+    "account:recover": "tsx scripts/recover-admin.ts",
+    "pwa:icons": "node scripts/generate-pwa-icons.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.1.0",
@@ -39,6 +40,7 @@
     "drizzle-kit": "latest",
     "eslint": "latest",
     "eslint-config-next": "latest",
+    "sharp": "^0.35.3",
     "tailwindcss": "latest",
     "tsx": "latest",
     "typescript": "latest"

@@ -66,6 +66,32 @@ Buka `http://localhost:3000`.
 - Template dan impor Excel untuk data siswa serta guru.
 - Tahun ajaran, riwayat kelas siswa, dan proses kenaikan kelas tahunan.
 
+## Progressive Web App (PWA)
+
+Aplikasi dapat dipasang pada layar utama Android dan iPhone tanpa APK atau App Store. Backend Next.js, autentikasi, dan PostgreSQL tetap berjalan di Zeabur; PWA hanya menambahkan pengalaman instalasi dan fallback koneksi.
+
+### Android
+
+1. Buka domain produksi melalui Chrome.
+2. Gunakan saran **Pasang Piket YAKIN** yang muncul, atau buka menu Chrome lalu pilih **Instal aplikasi**.
+3. Jalankan aplikasi melalui ikon **Piket YAKIN** pada layar utama.
+
+### iPhone
+
+1. Buka domain produksi melalui Safari.
+2. Ketuk tombol **Bagikan**.
+3. Pilih **Tambah ke Layar Utama**, lalu konfirmasi.
+
+Service worker hanya menyimpan aset publik dan file aplikasi yang telah diberi versi. Halaman privat, API, login, Server Actions, laporan, dan data absensi selalu mengambil data dari server. Saat koneksi terputus, aplikasi menampilkan status offline dan tidak menganggap perubahan telah tersimpan.
+
+Regenerasi ikon PWA setelah logo sekolah berubah:
+
+```powershell
+npm run pwa:icons
+```
+
+PWA harus disajikan melalui HTTPS di produksi. Setelah deployment, hapus instalasi lama lalu pasang kembali hanya jika ikon atau identitas aplikasi tidak diperbarui otomatis oleh sistem operasi.
+
 ## Impor data Excel
 
 Gunakan template dari aplikasi agar nama kolom, format, dan pilihan data tetap konsisten.
