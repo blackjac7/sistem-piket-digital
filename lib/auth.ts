@@ -3,7 +3,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { sessions, users } from "@/db/schema";
 
@@ -17,6 +17,7 @@ function hashToken(token: string) {
 export async function createSessionRecord(userId: number) {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
+  await db.delete(sessions).where(and(eq(sessions.userId, userId), lte(sessions.expiresAt, new Date())));
   await db.insert(sessions).values({ tokenHash: hashToken(token), userId, expiresAt });
   return { token, expiresAt };
 }
@@ -28,6 +29,7 @@ export function sessionCookieOptions(expiresAt: Date) {
     sameSite: "lax" as const,
     path: "/",
     expires: expiresAt,
+    priority: "high" as const,
   };
 }
 

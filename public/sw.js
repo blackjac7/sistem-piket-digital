@@ -1,4 +1,4 @@
-const STATIC_CACHE = "piket-yakin-static-v1";
+const STATIC_CACHE = "piket-yakin-static-v2";
 const PRECACHE_URLS = [
   "/offline.html",
   "/img/logo.png",
@@ -37,7 +37,7 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(() => caches.match("/offline.html")),
+      fetch(request, { cache: "no-store" }).catch(() => caches.match("/offline.html")),
     );
     return;
   }

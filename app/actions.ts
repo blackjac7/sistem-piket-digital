@@ -9,6 +9,7 @@ import { academicYears, attendanceRecords, auditLogs, dutyCompletions, dutySched
 import { createSession, deleteSession, destinationForUser, requireAdmin, requireRoles, requireUser } from "@/lib/auth";
 import { loadWorkbook } from "@/lib/excel";
 import { generateTemporaryPassword, hashPassword, needsPasswordRehash, validateNewPassword, verifyPassword } from "@/lib/password";
+import { internalErrorMessage, isUniqueViolation, reportServerError } from "@/lib/server-errors";
 import { normalizeTeacherName, usernameFromTeacherName, usernamePattern } from "@/lib/teacher-names";
 
 export type ActionState = { error?: string; success?: string; temporaryPassword?: string; accountName?: string };
@@ -16,6 +17,11 @@ export type ActionState = { error?: string; success?: string; temporaryPassword?
 const DUMMY_PASSWORD_HASH = "$argon2id$v=19$m=65536,t=3,p=1$lKgye5eVW7udIg3/0ryKVA$dLHO8+hRzTnP9HunQJNYYfC475qWyoZyK4m2icugSbw";
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 15 * 60 * 1000;
+const mutationRequestSchema = z.string().uuid();
+
+function mutationRequestId(formData: FormData) {
+  return mutationRequestSchema.safeParse(formData.get("requestId"));
+}
 
 const loginSchema = z.object({
   username: z.string().trim().min(3, "Username minimal 3 karakter."),
@@ -86,7 +92,9 @@ export async function changeOwnPasswordAction(_: ActionState, formData: FormData
 
 export async function resetUserPasswordAction(_: ActionState, formData: FormData): Promise<ActionState> {
   const admin = await requireAdmin();
+  const requestId = mutationRequestId(formData);
   const targetId = z.coerce.number().int().positive().safeParse(formData.get("userId"));
+  if (!requestId.success) return { error: "Formulir telah kedaluwarsa. Muat ulang halaman lalu coba kembali." };
   if (!targetId.success) return { error: "Akun tidak valid." };
   if (targetId.data === admin.id) return { error: "Gunakan menu Ubah kata sandi untuk akun Admin IT Anda sendiri." };
 
@@ -94,11 +102,16 @@ export async function resetUserPasswordAction(_: ActionState, formData: FormData
   if (!target) return { error: "Akun tidak ditemukan." };
   const temporaryPassword = generateTemporaryPassword();
   const passwordHash = await hashPassword(temporaryPassword);
-  await db.transaction(async (tx) => {
-    await tx.update(users).set({ passwordHash, mustChangePassword: true, passwordChangedAt: null, failedLoginAttempts: 0, lockedUntil: null, updatedAt: new Date() }).where(eq(users.id, target.id));
-    await tx.delete(sessions).where(eq(sessions.userId, target.id));
-    await tx.insert(auditLogs).values({ userId: admin.id, action: "RESET_PASSWORD", entity: "USER", entityId: String(target.id), description: `${admin.name} mereset kata sandi ${target.name}; seluruh sesi akun tersebut diakhiri.` });
-  });
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(auditLogs).values({ requestId: requestId.data, userId: admin.id, action: "RESET_PASSWORD", entity: "USER", entityId: String(target.id), description: `${admin.name} mereset kata sandi ${target.name}; seluruh sesi akun tersebut diakhiri.` });
+      await tx.update(users).set({ passwordHash, mustChangePassword: true, passwordChangedAt: null, failedLoginAttempts: 0, lockedUntil: null, updatedAt: new Date() }).where(eq(users.id, target.id));
+      await tx.delete(sessions).where(eq(sessions.userId, target.id));
+    });
+  } catch (error) {
+    if (isUniqueViolation(error, "audit_logs_request_id_unique")) return { error: "Permintaan reset yang sama sudah diproses. Muat ulang data akun sebelum melakukan reset baru." };
+    return { error: internalErrorMessage(reportServerError("reset-user-password", error)) };
+  }
   revalidatePath("/accounts");
   return { success: "Kata sandi sementara berhasil dibuat.", temporaryPassword, accountName: target.name };
 }
@@ -125,7 +138,8 @@ export async function completeDutyAction(formData: FormData) {
   const weekday = new Date(`${today}T12:00:00+07:00`).getUTCDay();
   const [schedule] = await db.select({ id: dutySchedules.id, shift: dutySchedules.shift }).from(dutySchedules).where(and(eq(dutySchedules.id, scheduleId), eq(dutySchedules.teacherId, user.teacherId), eq(dutySchedules.weekday, weekday), eq(dutySchedules.isActive, true))).limit(1);
   if (!schedule) return;
-  await db.insert(dutyCompletions).values({ scheduleId: schedule.id, teacherId: user.teacherId, completedBy: user.id, dutyDate: today, shift: schedule.shift }).onConflictDoNothing();
+  const inserted = await db.insert(dutyCompletions).values({ scheduleId: schedule.id, teacherId: user.teacherId, completedBy: user.id, dutyDate: today, shift: schedule.shift }).onConflictDoNothing().returning({ id: dutyCompletions.id });
+  if (!inserted.length) return;
   await db.insert(auditLogs).values({ userId: user.id, action: "COMPLETE", entity: "DUTY", entityId: String(schedule.id), description: `${user.name} menandai tugas piket ${today} shift ${schedule.shift} selesai.` });
   revalidatePath("/dashboard");
   revalidatePath("/monitoring");
@@ -144,6 +158,8 @@ const attendanceSchema = z.object({
 export async function createAttendanceAction(_: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireUser();
   if (!(["ADMIN", "GURU_PIKET"] as const).includes(user.role as "ADMIN" | "GURU_PIKET")) return { error: "Akses ditolak." };
+  const requestId = mutationRequestId(formData);
+  if (!requestId.success) return { error: "Formulir telah kedaluwarsa. Muat ulang halaman lalu coba kembali." };
   const parsed = attendanceSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   if (parsed.data.type === "SISWA" && !parsed.data.studentId) return { error: "Pilih siswa terlebih dahulu." };
@@ -166,20 +182,27 @@ export async function createAttendanceAction(_: ActionState, formData: FormData)
     teacherId = teacher[0].id;
   }
 
-  const [record] = await db.insert(attendanceRecords).values({
-    type: parsed.data.type,
-    personName,
-    classId,
-    studentId,
-    teacherId,
-    status: parsed.data.status,
-    attendanceDate: parsed.data.attendanceDate,
-    notes: parsed.data.notes || null,
-    isConfirmed: parsed.data.isConfirmed === "on",
-    recordedBy: user.id,
-  }).returning({ id: attendanceRecords.id });
-
-  await db.insert(auditLogs).values({ userId: user.id, action: "CREATE", entity: "ATTENDANCE", entityId: String(record.id), description: `Mencatat ${personName} dengan status ${parsed.data.status}.` });
+  try {
+    await db.transaction(async (tx) => {
+      const [audit] = await tx.insert(auditLogs).values({ requestId: requestId.data, userId: user.id, action: "CREATE", entity: "ATTENDANCE", description: `Mencatat ${personName} dengan status ${parsed.data.status}.` }).returning({ id: auditLogs.id });
+      const [record] = await tx.insert(attendanceRecords).values({
+        type: parsed.data.type,
+        personName,
+        classId,
+        studentId,
+        teacherId,
+        status: parsed.data.status,
+        attendanceDate: parsed.data.attendanceDate,
+        notes: parsed.data.notes || null,
+        isConfirmed: parsed.data.isConfirmed === "on",
+        recordedBy: user.id,
+      }).returning({ id: attendanceRecords.id });
+      await tx.update(auditLogs).set({ entityId: String(record.id) }).where(eq(auditLogs.id, audit.id));
+    });
+  } catch (error) {
+    if (isUniqueViolation(error, "audit_logs_request_id_unique")) return { success: "Catatan ini sudah tersimpan. Tidak ada data ganda yang dibuat." };
+    return { error: internalErrorMessage(reportServerError("create-attendance", error)) };
+  }
   revalidatePath("/dashboard");
   revalidatePath("/attendance");
   revalidatePath("/reports");
@@ -215,9 +238,11 @@ export async function replaceStudentRosterAction(_: ActionState, formData: FormD
 export async function deleteAttendanceAction(formData: FormData) {
   const user = await requireUser();
   if (!(["ADMIN", "GURU_PIKET"] as const).includes(user.role as "ADMIN" | "GURU_PIKET")) return;
-  const id = z.coerce.number().int().positive().parse(formData.get("id"));
-  await db.delete(attendanceRecords).where(eq(attendanceRecords.id, id));
-  await db.insert(auditLogs).values({ userId: user.id, action: "DELETE", entity: "ATTENDANCE", entityId: String(id), description: `Menghapus catatan ketidakhadiran #${id}.` });
+  const id = z.coerce.number().int().positive().safeParse(formData.get("id"));
+  if (!id.success) return;
+  const deleted = await db.delete(attendanceRecords).where(eq(attendanceRecords.id, id.data)).returning({ id: attendanceRecords.id });
+  if (!deleted.length) return;
+  await db.insert(auditLogs).values({ userId: user.id, action: "DELETE", entity: "ATTENDANCE", entityId: String(id.data), description: `Menghapus catatan ketidakhadiran #${id.data}.` });
   revalidatePath("/dashboard");
   revalidatePath("/attendance");
   revalidatePath("/reports");
@@ -232,16 +257,27 @@ const teacherSchema = z.object({
 
 export async function createTeacherAction(_: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireAdmin();
+  const requestId = mutationRequestId(formData);
+  if (!requestId.success) return { error: "Formulir telah kedaluwarsa. Muat ulang halaman lalu coba kembali." };
   const parsed = teacherSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const name = normalizeTeacherName(parsed.data.name);
-  const [teacher] = await db.insert(teachers).values({
-    name,
-    employeeNumber: parsed.data.employeeNumber || null,
-    phone: parsed.data.phone || null,
-    subject: parsed.data.subject || null,
-  }).returning({ id: teachers.id });
-  await db.insert(auditLogs).values({ userId: user.id, action: "CREATE", entity: "TEACHER", entityId: String(teacher.id), description: `Menambahkan guru ${name}.` });
+  try {
+    await db.transaction(async (tx) => {
+      const [audit] = await tx.insert(auditLogs).values({ requestId: requestId.data, userId: user.id, action: "CREATE", entity: "TEACHER", description: `Menambahkan guru ${name}.` }).returning({ id: auditLogs.id });
+      const [teacher] = await tx.insert(teachers).values({
+        name,
+        employeeNumber: parsed.data.employeeNumber || null,
+        phone: parsed.data.phone || null,
+        subject: parsed.data.subject || null,
+      }).returning({ id: teachers.id });
+      await tx.update(auditLogs).set({ entityId: String(teacher.id) }).where(eq(auditLogs.id, audit.id));
+    });
+  } catch (error) {
+    if (isUniqueViolation(error, "audit_logs_request_id_unique")) return { success: "Permintaan penambahan guru ini sudah diproses." };
+    if (isUniqueViolation(error, "teachers_employee_number_unique")) return { error: "NIP/NUPTK sudah digunakan guru lain." };
+    return { error: internalErrorMessage(reportServerError("create-teacher", error)) };
+  }
   revalidatePath("/teachers");
   return { success: "Guru berhasil ditambahkan." };
 }
@@ -253,6 +289,8 @@ const dutyTeacherSchema = z.object({
 
 export async function setDutyTeacherAction(_: ActionState, formData: FormData): Promise<ActionState> {
   const admin = await requireAdmin();
+  const requestId = mutationRequestId(formData);
+  if (!requestId.success) return { error: "Formulir telah kedaluwarsa. Muat ulang halaman lalu coba kembali." };
   const parsed = dutyTeacherSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
@@ -266,6 +304,7 @@ export async function setDutyTeacherAction(_: ActionState, formData: FormData): 
   let temporaryPassword: string | undefined;
   try {
     await db.transaction(async (tx) => {
+      await tx.insert(auditLogs).values({ requestId: requestId.data, userId: admin.id, action: "UPDATE", entity: "TEACHER", entityId: String(teacher.id), description: `${teacher.name} ditetapkan sebagai guru piket dengan username @${parsed.data.username}.` });
       await tx.update(teachers).set({ isDutyTeacher: true, updatedAt: new Date() }).where(eq(teachers.id, teacher.id));
       if (account) {
         await tx.update(users).set({ name: teacher.name, username: parsed.data.username, role: "GURU_PIKET", isActive: true, updatedAt: new Date() }).where(eq(users.id, account.id));
@@ -274,9 +313,10 @@ export async function setDutyTeacherAction(_: ActionState, formData: FormData): 
         const passwordHash = await hashPassword(temporaryPassword);
         await tx.insert(users).values({ teacherId: teacher.id, name: teacher.name, username: parsed.data.username, passwordHash, role: "GURU_PIKET", mustChangePassword: true });
       }
-      await tx.insert(auditLogs).values({ userId: admin.id, action: "UPDATE", entity: "TEACHER", entityId: String(teacher.id), description: `${teacher.name} ditetapkan sebagai guru piket dengan username @${parsed.data.username}.` });
     });
-  } catch {
+  } catch (error) {
+    if (isUniqueViolation(error, "audit_logs_request_id_unique")) return { error: "Permintaan yang sama sudah diproses. Muat ulang data guru untuk melihat hasil terbaru." };
+    if (!isUniqueViolation(error)) return { error: internalErrorMessage(reportServerError("set-duty-teacher", error)) };
     return { error: "Username gagal disimpan. Pastikan username belum digunakan akun lain." };
   }
 
@@ -348,23 +388,35 @@ const scheduleSchema = z.object({
 
 export async function createScheduleAction(_: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireAdmin();
+  const requestId = mutationRequestId(formData);
+  if (!requestId.success) return { error: "Formulir telah kedaluwarsa. Muat ulang halaman lalu coba kembali." };
   const parsed = scheduleSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const teacher = await db.select({ duty: teachers.isDutyTeacher, name: teachers.name }).from(teachers).where(eq(teachers.id, parsed.data.teacherId)).limit(1);
   if (!teacher[0]?.duty) return { error: "Guru harus ditetapkan sebagai guru piket terlebih dahulu." };
   const duplicate = await db.select({ id: dutySchedules.id }).from(dutySchedules).where(and(eq(dutySchedules.teacherId, parsed.data.teacherId), eq(dutySchedules.weekday, parsed.data.weekday), eq(dutySchedules.shift, parsed.data.shift), eq(dutySchedules.isActive, true))).limit(1);
   if (duplicate[0]) return { error: "Jadwal guru pada hari dan shift tersebut sudah ada." };
-  await db.insert(dutySchedules).values({ ...parsed.data, startTime: `${parsed.data.startTime}:00`, endTime: `${parsed.data.endTime}:00` });
-  await db.insert(auditLogs).values({ userId: user.id, action: "CREATE", entity: "SCHEDULE", description: `Menambahkan jadwal piket untuk ${teacher[0].name}.` });
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(auditLogs).values({ requestId: requestId.data, userId: user.id, action: "CREATE", entity: "SCHEDULE", description: `Menambahkan jadwal piket untuk ${teacher[0].name}.` });
+      await tx.insert(dutySchedules).values({ ...parsed.data, startTime: `${parsed.data.startTime}:00`, endTime: `${parsed.data.endTime}:00` });
+    });
+  } catch (error) {
+    if (isUniqueViolation(error, "audit_logs_request_id_unique")) return { success: "Permintaan jadwal ini sudah diproses." };
+    if (isUniqueViolation(error, "duty_schedule_active_unique")) return { error: "Jadwal guru pada hari dan shift tersebut sudah ada." };
+    return { error: internalErrorMessage(reportServerError("create-schedule", error)) };
+  }
   revalidatePath("/schedule");
   return { success: "Jadwal piket berhasil disimpan." };
 }
 
 export async function deleteScheduleAction(formData: FormData) {
   const user = await requireAdmin();
-  const id = z.coerce.number().int().positive().parse(formData.get("id"));
-  await db.update(dutySchedules).set({ isActive: false, inactiveAt: new Date() }).where(eq(dutySchedules.id, id));
-  await db.insert(auditLogs).values({ userId: user.id, action: "DEACTIVATE", entity: "SCHEDULE", entityId: String(id), description: `Menonaktifkan jadwal piket #${id} tanpa menghapus riwayat.` });
+  const id = z.coerce.number().int().positive().safeParse(formData.get("id"));
+  if (!id.success) return;
+  const updated = await db.update(dutySchedules).set({ isActive: false, inactiveAt: new Date() }).where(and(eq(dutySchedules.id, id.data), eq(dutySchedules.isActive, true))).returning({ id: dutySchedules.id });
+  if (!updated.length) return;
+  await db.insert(auditLogs).values({ userId: user.id, action: "DEACTIVATE", entity: "SCHEDULE", entityId: String(id.data), description: `Menonaktifkan jadwal piket #${id.data} tanpa menghapus riwayat.` });
   revalidatePath("/schedule");
 }
 
@@ -421,7 +473,10 @@ export async function importStudentsAction(_: ActionState, formData: FormData): 
     });
     revalidatePath("/students"); revalidatePath("/attendance");
     return { success: `${parsed.length} data siswa berhasil diimpor atau diperbarui.` };
-  } catch (error) { return { error: error instanceof Error ? error.message : "File siswa gagal diproses." }; }
+  } catch (error) {
+    const reference = reportServerError("import-students", error);
+    return { error: `File siswa gagal diproses. Pastikan memakai template terbaru. Referensi: ${reference}.` };
+  }
 }
 
 export async function importTeachersAction(_: ActionState, formData: FormData): Promise<ActionState> {
@@ -474,11 +529,17 @@ export async function importTeachersAction(_: ActionState, formData: FormData): 
     });
     revalidatePath("/teachers"); revalidatePath("/schedule");
     return { success: `${parsed.length} data guru berhasil diimpor atau diperbarui.` };
-  } catch (error) { return { error: error instanceof Error ? error.message : "File guru gagal diproses." }; }
+  } catch (error) {
+    if (isUniqueViolation(error, "users_username_unique")) return { error: "Salah satu username sudah digunakan akun lain." };
+    const reference = reportServerError("import-teachers", error);
+    return { error: `File guru gagal diproses. Pastikan memakai template terbaru. Referensi: ${reference}.` };
+  }
 }
 
 export async function promoteAcademicYearAction(_: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireAdmin();
+  const requestId = mutationRequestId(formData);
+  if (!requestId.success) return { error: "Formulir telah kedaluwarsa. Muat ulang halaman lalu coba kembali." };
   const mode = formData.get("mode");
   if (mode !== "ROMBEL_TETAP" && mode !== "ROMBEL_BARU") return { error: "Pilih metode kenaikan kelas terlebih dahulu." };
   const targetName = String(formData.get("targetYear") || "").trim();
@@ -546,7 +607,8 @@ export async function promoteAcademicYearAction(_: ActionState, formData: FormDa
       const overloaded = [...totals.entries()].find(([, total]) => total > 60);
       if (overloaded) return { error: `Kelas ${classById.get(overloaded[0])?.name} berisi ${overloaded[1]} siswa. Maksimal 60 siswa per rombel.` };
     } catch (error) {
-      return { error: error instanceof Error ? error.message : "File penempatan rombel gagal diproses." };
+      const reference = reportServerError("parse-promotion-workbook", error);
+      return { error: `File penempatan rombel gagal diproses. Pastikan memakai template terbaru. Referensi: ${reference}.` };
     }
   }
   const existingTarget = await db.select({ id: academicYears.id }).from(academicYears).where(eq(academicYears.name, targetName)).limit(1);
@@ -554,29 +616,35 @@ export async function promoteAcademicYearAction(_: ActionState, formData: FormDa
     const [historyCount] = await db.select({ value: count() }).from(studentEnrollments).where(eq(studentEnrollments.academicYearId, existingTarget[0].id));
     if (historyCount.value > 0) return { error: "Tahun ajaran tujuan sudah memiliki data penempatan siswa." };
   }
-  await db.transaction(async (tx) => {
-    let targetYearId = existingTarget[0]?.id;
-    if (targetYearId) await tx.update(academicYears).set({ isActive: true }).where(eq(academicYears.id, targetYearId));
-    else { const [created] = await tx.insert(academicYears).values({ name: targetName, startYear: Number(match[1]), endYear: Number(match[2]), isActive: true }).returning({ id: academicYears.id }); targetYearId = created.id; }
-    await tx.update(academicYears).set({ isActive: false }).where(eq(academicYears.id, currentYear.id));
-    for (const student of activeStudents) {
-      if (!student.classId) continue;
-      const source = classById.get(student.classId);
-      if (!source) continue;
-      if (source.grade === 9) {
-        await tx.update(students).set({ classId: null, status: "LULUS", isActive: false, updatedAt: new Date() }).where(eq(students.id, student.id));
-        await tx.update(studentEnrollments).set({ outcome: "LULUS", updatedAt: new Date() }).where(and(eq(studentEnrollments.studentId, student.id), eq(studentEnrollments.academicYearId, currentYear.id)));
-      } else {
-        const targetClassId = assignments.get(student.id);
-        if (!targetClassId) throw new Error(`Penempatan ${student.name} tidak ditemukan.`);
-        await tx.update(students).set({ classId: targetClassId, updatedAt: new Date() }).where(eq(students.id, student.id));
-        await tx.update(studentEnrollments).set({ outcome: "NAIK", updatedAt: new Date() }).where(and(eq(studentEnrollments.studentId, student.id), eq(studentEnrollments.academicYearId, currentYear.id)));
-        await tx.insert(studentEnrollments).values({ studentId: student.id, classId: targetClassId, academicYearId: targetYearId, outcome: "AKTIF" });
+  try {
+    await db.transaction(async (tx) => {
+      const methodLabel = mode === "ROMBEL_TETAP" ? "rombel dipertahankan" : "rombel baru dari Excel";
+      const [audit] = await tx.insert(auditLogs).values({ requestId: requestId.data, userId: user.id, action: "PROMOTE", entity: "ACADEMIC_YEAR", description: `Memproses kenaikan kelas ${currentYear.name} ke ${targetName} untuk ${activeStudents.length} siswa dengan ${methodLabel}.` }).returning({ id: auditLogs.id });
+      let targetYearId = existingTarget[0]?.id;
+      if (targetYearId) await tx.update(academicYears).set({ isActive: true }).where(eq(academicYears.id, targetYearId));
+      else { const [created] = await tx.insert(academicYears).values({ name: targetName, startYear: Number(match[1]), endYear: Number(match[2]), isActive: true }).returning({ id: academicYears.id }); targetYearId = created.id; }
+      await tx.update(auditLogs).set({ entityId: String(targetYearId) }).where(eq(auditLogs.id, audit.id));
+      await tx.update(academicYears).set({ isActive: false }).where(eq(academicYears.id, currentYear.id));
+      for (const student of activeStudents) {
+        if (!student.classId) continue;
+        const source = classById.get(student.classId);
+        if (!source) continue;
+        if (source.grade === 9) {
+          await tx.update(students).set({ classId: null, status: "LULUS", isActive: false, updatedAt: new Date() }).where(eq(students.id, student.id));
+          await tx.update(studentEnrollments).set({ outcome: "LULUS", updatedAt: new Date() }).where(and(eq(studentEnrollments.studentId, student.id), eq(studentEnrollments.academicYearId, currentYear.id)));
+        } else {
+          const targetClassId = assignments.get(student.id);
+          if (!targetClassId) throw new Error("Missing validated student placement");
+          await tx.update(students).set({ classId: targetClassId, updatedAt: new Date() }).where(eq(students.id, student.id));
+          await tx.update(studentEnrollments).set({ outcome: "NAIK", updatedAt: new Date() }).where(and(eq(studentEnrollments.studentId, student.id), eq(studentEnrollments.academicYearId, currentYear.id)));
+          await tx.insert(studentEnrollments).values({ studentId: student.id, classId: targetClassId, academicYearId: targetYearId, outcome: "AKTIF" });
+        }
       }
-    }
-    const methodLabel = mode === "ROMBEL_TETAP" ? "rombel dipertahankan" : "rombel baru dari Excel";
-    await tx.insert(auditLogs).values({ userId: user.id, action: "PROMOTE", entity: "ACADEMIC_YEAR", entityId: String(targetYearId), description: `Memproses kenaikan kelas ${currentYear.name} ke ${targetName} untuk ${activeStudents.length} siswa dengan ${methodLabel}.` });
-  });
+    });
+  } catch (error) {
+    if (isUniqueViolation(error, "audit_logs_request_id_unique")) return { success: "Permintaan kenaikan kelas ini sudah diproses." };
+    return { error: internalErrorMessage(reportServerError("promote-academic-year", error)) };
+  }
   revalidatePath("/academic-years"); revalidatePath("/students"); revalidatePath("/attendance"); revalidatePath("/dashboard");
   return { success: `Kenaikan kelas selesai dengan ${mode === "ROMBEL_TETAP" ? "rombel yang dipertahankan" : "penempatan rombel baru"}. Tahun ajaran ${targetName} sekarang aktif.` };
 }

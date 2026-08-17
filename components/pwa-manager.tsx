@@ -2,6 +2,7 @@
 
 import { Download, RefreshCw, Share2, WifiOff, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useOffline } from "next/offline";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -20,20 +21,22 @@ function isIos() {
 }
 
 function isMobileDevice() {
-  return window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 820;
+  return window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 900;
 }
 
 function hasRecentInstallDismissal() {
-  const dismissedAt = Number(localStorage.getItem(INSTALL_DISMISS_KEY));
-  if (!Number.isFinite(dismissedAt) || Date.now() - dismissedAt >= INSTALL_DISMISS_DURATION) {
+  try {
+    const dismissedAt = Number(localStorage.getItem(INSTALL_DISMISS_KEY));
+    if (Number.isFinite(dismissedAt) && Date.now() - dismissedAt < INSTALL_DISMISS_DURATION) return true;
     localStorage.removeItem(INSTALL_DISMISS_KEY);
+  } catch {
     return false;
   }
-  return true;
+  return false;
 }
 
 export function PwaManager() {
-  const [online, setOnline] = useState(true);
+  const offline = useOffline();
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstall, setShowInstall] = useState(false);
   const [ios, setIos] = useState(false);
@@ -43,7 +46,6 @@ export function PwaManager() {
   const refreshing = useRef(false);
 
   useEffect(() => {
-    const updateConnection = () => setOnline(navigator.onLine);
     const updateInstallContext = () => {
       setStandalone(isStandalone());
       setIos(isIos());
@@ -62,10 +64,7 @@ export function PwaManager() {
       void navigator.serviceWorker?.getRegistration().then((registration) => registration?.update());
     };
 
-    updateConnection();
     updateInstallContext();
-    window.addEventListener("online", updateConnection);
-    window.addEventListener("offline", updateConnection);
     window.addEventListener("resize", updateInstallContext);
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
     document.addEventListener("visibilitychange", checkForUpdate);
@@ -90,8 +89,6 @@ export function PwaManager() {
     }
 
     return () => {
-      window.removeEventListener("online", updateConnection);
-      window.removeEventListener("offline", updateConnection);
       window.removeEventListener("resize", updateInstallContext);
       window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
       document.removeEventListener("visibilitychange", checkForUpdate);
@@ -106,7 +103,11 @@ export function PwaManager() {
   }, [installEvent, ios, mobile, standalone]);
 
   function dismissInstall() {
-    localStorage.setItem(INSTALL_DISMISS_KEY, String(Date.now()));
+    try {
+      localStorage.setItem(INSTALL_DISMISS_KEY, String(Date.now()));
+    } catch {
+      // Installation guidance still closes when browser storage is unavailable.
+    }
     setShowInstall(false);
   }
 
@@ -128,7 +129,7 @@ export function PwaManager() {
   }
 
   return <div className="pwa-notice-stack" aria-live="polite">
-    {!online && <section className="pwa-notice pwa-notice-offline" role="status"><WifiOff aria-hidden="true" /><div><strong>Koneksi terputus</strong><span>Perubahan baru belum dapat dikirim ke server.</span></div></section>}
+    {offline && <section className="pwa-notice pwa-notice-offline" role="status"><WifiOff aria-hidden="true" /><div><strong>Koneksi terputus</strong><span>Proses yang sedang dikirim akan dilanjutkan otomatis saat koneksi kembali.</span></div></section>}
     {updateReady && <section className="pwa-notice"><RefreshCw aria-hidden="true" /><div><strong>Versi baru siap</strong><span>Muat ulang saat tidak sedang mengisi formulir.</span></div><button className="pwa-notice-action" type="button" onClick={applyUpdate}>Muat ulang</button></section>}
     {showInstall && <section className="pwa-notice pwa-install-notice"><Download aria-hidden="true" /><div><strong>Pasang Piket YAKIN</strong>{ios ? <span>Ketuk <Share2 aria-label="Bagikan" /> lalu pilih Tambah ke Layar Utama.</span> : <span>Akses lebih cepat dari layar utama perangkat.</span>}</div>{ios ? <button className="pwa-notice-action" type="button" onClick={dismissInstall}>Mengerti</button> : <button className="pwa-notice-action" type="button" onClick={install}>Pasang</button>}<button className="pwa-notice-close" type="button" onClick={dismissInstall} aria-label="Tutup saran instalasi" title="Tutup"><X aria-hidden="true" /></button></section>}
   </div>;

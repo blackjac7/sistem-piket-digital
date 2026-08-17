@@ -20,7 +20,8 @@ export default async function MonitoringPage({ searchParams }: { searchParams: P
   return <>
     <PageHeader title="Pemantauan guru piket" description={`Keterlaksanaan tugas dan aktivitas pencatatan ${formatDateId(data.start)} sampai ${formatDateId(data.end)}.`} action={<a className="button button-primary" href={`/api/reports/monitoring?period=${period}`}><Download /> Ekspor laporan Excel</a>} />
     <nav className="period-filter" aria-label="Periode pemantauan">{[7, 30, 90].map((value) => <a key={value} href={`/monitoring?period=${value}`} aria-current={period === value ? "page" : undefined}>{value} hari</a>)}</nav>
-    <section className="stat-grid">{stats.map(({ label, value, detail, icon: Icon, tone }) => <article className="stat-card" key={label}><span className={`stat-icon ${tone}`}><Icon /></span><div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div></article>)}</section>
+    <section className={`monitoring-insight ${data.summary.overdue ? "needs-attention" : "on-track"}`}><span>{data.summary.overdue ? <AlertTriangle aria-hidden="true" /> : <CheckCircle2 aria-hidden="true" />}</span><div><strong>{data.summary.overdue ? `${data.summary.overdue} jadwal perlu ditindaklanjuti` : "Pelaksanaan piket berada di jalur yang baik"}</strong><p>{data.summary.overdue ? "Periksa riwayat di bawah untuk melihat guru, tanggal, dan shift yang belum diselesaikan." : `Keterlaksanaan mencapai ${data.summary.completionRate}% pada periode terpilih.`}</p></div><StatusPill tone={data.summary.overdue ? "warning" : "success"}>{data.summary.overdue ? "Perlu perhatian" : "Terkendali"}</StatusPill></section>
+    <section className="stat-grid">{stats.map(({ label, value, detail, icon: Icon, tone }) => <article className={`stat-card tone-${tone}`} key={label}><span className={`stat-icon ${tone}`}><Icon /></span><div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div></article>)}</section>
 
     <section className="monitoring-grid">
       <article className="panel chart-panel">
@@ -28,6 +29,7 @@ export default async function MonitoringPage({ searchParams }: { searchParams: P
         <div className="compliance-chart" role="img" aria-label="Grafik persentase keterlaksanaan piket 14 hari terakhir">
           {data.trend.map((item) => { const rate = item.scheduled ? Math.round(item.completed / item.scheduled * 100) : 0; return <div className="chart-column" key={item.date} title={`${formatDateId(item.date)}: ${item.completed} dari ${item.scheduled} jadwal selesai`}><span>{item.scheduled ? `${rate}%` : "-"}</span><div className="chart-track"><i style={{ height: `${item.scheduled ? Math.max(rate, 5) : 2}%` }} /></div><small>{item.date.slice(8, 10)}/{item.date.slice(5, 7)}</small></div>; })}
         </div>
+        <div className="chart-mobile-summary" aria-label="Rincian keterlaksanaan per hari">{data.trend.map((item) => { const rate = item.scheduled ? Math.round(item.completed / item.scheduled * 100) : 0; return <div key={item.date}><span><strong>{item.date.slice(8, 10)}/{item.date.slice(5, 7)}</strong><small>{item.completed}/{item.scheduled} jadwal selesai</small></span><b>{item.scheduled ? `${rate}%` : "-"}</b></div>; })}</div>
       </article>
       <article className="panel teacher-performance">
         <div className="panel-header"><div><h2><UserRoundCheck /> Ringkasan per guru</h2><p>Status sesuai jadwal dan shift</p></div></div>
@@ -37,7 +39,12 @@ export default async function MonitoringPage({ searchParams }: { searchParams: P
 
     <article className="panel monitoring-table">
       <div className="panel-header"><div><h2><ListChecks /> Riwayat keterlaksanaan</h2><p>Status jadwal terbaru dalam periode terpilih</p></div></div>
-      <div className="table-scroll"><table><thead><tr><th>Tanggal</th><th>Guru piket</th><th>Shift</th><th>Aktivitas</th><th>Status</th><th>Waktu selesai</th></tr></thead><tbody>
+      <div className="mobile-data-view"><div className="mobile-record-list">{data.occurrences.slice(0, 100).map((item) => <article className="mobile-record" key={`${item.teacherId}-${item.date}-${item.shift}`}>
+        <div className="mobile-record-heading"><span className="avatar">{item.teacherName.split(" ").map((word) => word[0]).join("").slice(0, 2)}</span><span><strong>{item.teacherName}</strong><small>{item.weekday} · {formatDateId(item.date)}</small></span><StatusPill tone={item.status === "SELESAI" ? "success" : item.status === "BERJALAN" ? "info" : "danger"}>{item.status === "SELESAI" ? "Selesai" : item.status === "BERJALAN" ? "Berjalan" : "Belum"}</StatusPill></div>
+        <dl className="mobile-record-details"><div><dt>Shift</dt><dd>{item.shift} · {item.startTime.slice(0, 5)}-{item.endTime.slice(0, 5)}</dd></div><div><dt>Aktivitas</dt><dd>{item.attendanceCount} catatan</dd></div></dl>
+        <p className="mobile-record-note">{item.completedAt ? `Diselesaikan ${formatDateTimeId(item.completedAt)}` : "Belum ada waktu penyelesaian"}</p>
+      </article>)}{!data.occurrences.length && <p className="empty-state">Belum ada jadwal pada periode ini.</p>}</div></div>
+      <div className="table-scroll desktop-data-view"><table><thead><tr><th>Tanggal</th><th>Guru piket</th><th>Shift</th><th>Aktivitas</th><th>Status</th><th>Waktu selesai</th></tr></thead><tbody>
         {data.occurrences.slice(0, 100).map((item) => <tr key={`${item.teacherId}-${item.date}-${item.shift}`}><td><strong>{item.weekday}</strong><small className="table-subtitle">{formatDateId(item.date)}</small></td><td>{item.teacherName}</td><td>{item.shift}<small className="table-subtitle mono">{item.startTime.slice(0, 5)}-{item.endTime.slice(0, 5)}</small></td><td>{item.attendanceCount} catatan</td><td><StatusPill tone={item.status === "SELESAI" ? "success" : item.status === "BERJALAN" ? "info" : "danger"}>{item.status === "SELESAI" ? "Selesai" : item.status === "BERJALAN" ? "Berjalan" : "Belum"}</StatusPill></td><td>{item.completedAt ? formatDateTimeId(item.completedAt) : "-"}</td></tr>)}
         {!data.occurrences.length && <tr><td colSpan={6} className="empty-state">Belum ada jadwal pada periode ini.</td></tr>}
       </tbody></table></div>

@@ -26,7 +26,13 @@ export default async function AccountsPage() {
       </div>
       <section className="panel accounts-panel">
         <div className="panel-header"><div><h2>Daftar akun</h2><p>Reset menghasilkan password sementara dan otomatis mencabut semua sesi akun.</p></div></div>
-        <div className="table-scroll">
+        <div className="mobile-data-view"><div className="mobile-record-list">{accounts.map((account) => <article className="mobile-record" key={account.id}>
+          <div className="mobile-record-heading"><span className="avatar">{account.name.split(" ").map((word) => word[0]).join("").slice(0, 2)}</span><span><strong>{account.name}</strong><small>@{account.username}{!account.isActive ? " · Nonaktif" : ""}</small></span><span className="status-pill info">{roleLabels[account.role]}</span></div>
+          <dl className="mobile-record-details"><div><dt>Status password</dt><dd>{account.mustChangePassword ? "Wajib diganti" : "Aktif"}</dd></div><div><dt>Login terakhir</dt><dd>{formatDate(account.lastLoginAt)}</dd></div></dl>
+          <p className="mobile-record-note">{account.passwordChangedAt ? `Password diubah ${formatDate(account.passwordChangedAt)}` : "Password pribadi belum dibuat pengguna"}{account.lockedUntil && account.lockedUntil > new Date() ? " · Akun terkunci sementara" : ""}</p>
+          <div className="mobile-record-actions">{account.id === admin.id ? <Link className="button button-secondary small" href="/account/password"><KeyRound /> Ubah password sendiri</Link> : <ResetPasswordControl userId={account.id} accountName={account.name} />}</div>
+        </article>)}</div></div>
+        <div className="table-scroll desktop-data-view">
           <table>
             <thead><tr><th>Akun</th><th>Peran</th><th>Status password</th><th>Login terakhir</th><th>Aksi</th></tr></thead>
             <tbody>{accounts.map((account) => (

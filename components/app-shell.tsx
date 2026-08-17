@@ -2,7 +2,7 @@ import Image from "next/image";
 import { LogOut, ShieldCheck } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 import { roleLabels, siteConfig } from "@/lib/site-config";
-import { MainNav } from "./main-nav";
+import { MainNav, MobileNav } from "./main-nav";
 import { SubmitButton } from "./submit-button";
 
 export function AppShell({ user, children }: { user: { name: string; username: string; role: string }; children: React.ReactNode }) {
@@ -18,10 +18,15 @@ export function AppShell({ user, children }: { user: { name: string; username: s
           <form action={logoutAction}><SubmitButton className="icon-button" title="Keluar" ariaLabel="Keluar" pendingLabel=""><LogOut /></SubmitButton></form>
         </div>
       </aside>
+      <header className="mobile-app-header">
+        <div className="mobile-app-brand"><span><Image src={siteConfig.logoPath} alt="" width={30} height={30} priority /></span><div><strong>{siteConfig.schoolName}</strong><small>{siteConfig.productName}</small></div></div>
+        <div className="mobile-app-user"><span className="avatar">{user.name.split(" ").map((word) => word[0]).join("").slice(0, 2)}</span><span><strong>{user.name}</strong><small>{roleLabels[user.role] || user.role.replaceAll("_", " ")}</small></span><form action={logoutAction}><SubmitButton className="icon-button" title="Keluar" ariaLabel="Keluar" pendingLabel=""><LogOut /></SubmitButton></form></div>
+      </header>
       <main className="main-area" id="main-content" tabIndex={-1}>
         <header className="topbar"><div><span className="eyebrow"><ShieldCheck /> Sistem internal sekolah</span></div><div className="connection"><span /> PostgreSQL tersambung</div></header>
         <div className="page-content">{children}</div>
       </main>
+      <MobileNav role={user.role} />
     </div>
   );
 }

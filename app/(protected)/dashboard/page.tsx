@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { and, count, desc, eq } from "drizzle-orm";
-import { AlertCircle, ArrowRight, CalendarDays, CheckCircle2, ClipboardPlus, GraduationCap, UsersRound } from "lucide-react";
+import { AlertCircle, ArrowRight, BarChart3, CalendarDays, CheckCircle2, ClipboardPlus, Fingerprint, GraduationCap, UserCog, UsersRound } from "lucide-react";
 import { completeDutyAction } from "@/app/actions";
 import { PageHeader } from "@/components/page-header";
 import { StatusPill } from "@/components/status-pill";
@@ -30,15 +30,28 @@ export default async function DashboardPage() {
     { label: "Guru piket aktif", value: dutyCount.value, detail: "dari 22 guru", icon: CheckCircle2, tone: "green" },
   ];
   const ownDuty = user.teacherId ? todayDuty.find((item) => item.teacherId === user.teacherId) : undefined;
+  const quickActions = user.role === "ADMIN" ? [
+    { href: "/schedule", label: "Jadwal piket", detail: "Atur hari dan shift", icon: CalendarDays, tone: "blue" },
+    { href: "/teachers", label: "Data guru", detail: "Kelola guru piket", icon: UsersRound, tone: "green" },
+    { href: "/accounts", label: "Akun & akses", detail: "Password dan peran", icon: UserCog, tone: "amber" },
+  ] : user.role === "GURU_PIKET" ? [
+    { href: "/attendance", label: "Catat absensi", detail: "Siswa atau guru", icon: ClipboardPlus, tone: "blue" },
+    { href: "/reports", label: "Buka rekap", detail: "Lihat tindak lanjut", icon: BarChart3, tone: "amber" },
+    { href: "/security", label: "Keamanan", detail: "Password dan passkey", icon: Fingerprint, tone: "green" },
+  ] : [
+    { href: "/security", label: "Keamanan login", detail: "Password dan passkey", icon: Fingerprint, tone: "green" },
+  ];
 
   return <>
     <PageHeader title="Ringkasan hari ini" description={`${formatDateId(today)} · Kondisi operasional SMP IP YAKIN`} action={user.role === "ADMIN" || user.role === "GURU_PIKET" ? <Link href="/attendance" className="button button-primary"><ClipboardPlus /> Catat absensi</Link> : undefined} />
     {user.role === "GURU_PIKET" && <section className={`duty-check-card ${ownDuty?.completedAt ? "completed" : ""}`}><span className="stat-icon green"><CheckCircle2 /></span><div><strong>{ownDuty ? `Tugas piket ${ownDuty.shift.toLowerCase()}` : "Tidak ada jadwal piket hari ini"}</strong><small>{ownDuty?.completedAt ? `Sudah selesai pada ${formatDateTimeId(ownDuty.completedAt)}` : ownDuty ? "Setelah seluruh pencatatan selesai, tutup tugas dengan satu klik." : "Hubungi Admin IT jika jadwal belum sesuai."}</small></div>{ownDuty && !ownDuty.completedAt && <form action={completeDutyAction}><input type="hidden" name="scheduleId" value={ownDuty.id} /><SubmitButton pendingLabel="Menutup tugas...">Tugas piket selesai</SubmitButton></form>}{ownDuty?.completedAt && <StatusPill tone="success">Selesai</StatusPill>}</section>}
-    <section className="stat-grid">{stats.map(({ label, value, detail, icon: Icon, tone }) => <article className="stat-card" key={label}><span className={`stat-icon ${tone}`}><Icon /></span><div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div></article>)}</section>
+    <nav className="workspace-actions" aria-label="Akses cepat">{quickActions.map(({ href, label, detail, icon: Icon, tone }) => <Link className={`workspace-action tone-${tone}`} href={href} key={href}><span><Icon aria-hidden="true" /></span><div><strong>{label}</strong><small>{detail}</small></div><ArrowRight aria-hidden="true" /></Link>)}</nav>
+    <section className="stat-grid">{stats.map(({ label, value, detail, icon: Icon, tone }) => <article className={`stat-card tone-${tone}`} key={label}><span className={`stat-icon ${tone}`}><Icon /></span><div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div></article>)}</section>
     <section className="dashboard-grid">
       <article className="panel wide">
         <div className="panel-header"><div><h2>Catatan terbaru</h2><p>Aktivitas absensi terakhir yang masuk</p></div><Link href="/attendance" className="text-link">Lihat semua <ArrowRight /></Link></div>
-        <div className="table-scroll"><table><thead><tr><th>Nama</th><th>Jenis</th><th>Status</th><th>Konfirmasi</th><th>Pencatat</th><th>Waktu</th></tr></thead><tbody>
+        <div className="recent-mobile-list">{recent.map((record) => <article key={record.id}><span className="avatar">{record.name.split(" ").map((word) => word[0]).join("").slice(0, 2)}</span><div><strong>{record.name}</strong><small>{record.type === "SISWA" ? "Siswa" : "Guru"} · dicatat {record.recorder}</small><time>{formatDateTimeId(record.createdAt)}</time></div><div><StatusPill tone={record.status === "ALPA" ? "danger" : record.status === "SAKIT" ? "warning" : "info"}>{record.status}</StatusPill><StatusPill tone={record.confirmed ? "success" : "warning"}>{record.confirmed ? "Selesai" : "Tinjau"}</StatusPill></div></article>)}{!recent.length && <div className="empty-state">Belum ada catatan absensi.</div>}</div>
+        <div className="table-scroll recent-table"><table><thead><tr><th>Nama</th><th>Jenis</th><th>Status</th><th>Konfirmasi</th><th>Pencatat</th><th>Waktu</th></tr></thead><tbody>
           {recent.map((record) => <tr key={record.id}><td><strong>{record.name}</strong></td><td>{record.type === "SISWA" ? "Siswa" : "Guru"}</td><td><StatusPill tone={record.status === "ALPA" ? "danger" : record.status === "SAKIT" ? "warning" : "info"}>{record.status}</StatusPill></td><td>{record.confirmed ? <StatusPill tone="success">Sudah</StatusPill> : <StatusPill tone="warning">Belum</StatusPill>}</td><td>{record.recorder}</td><td className="mono">{formatDateTimeId(record.createdAt)}</td></tr>)}
           {!recent.length && <tr><td colSpan={6} className="empty-state">Belum ada catatan absensi.</td></tr>}
         </tbody></table></div>

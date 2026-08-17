@@ -5,6 +5,7 @@ import { Check, Copy, KeyRound, LoaderCircle, RotateCcw, X } from "lucide-react"
 import { useFormStatus } from "react-dom";
 import { resetUserPasswordAction } from "@/app/actions";
 import { AppDialog } from "./app-dialog";
+import { MutationRequestInput } from "./mutation-request-input";
 
 function ResetSubmitButton() {
   const { pending } = useFormStatus();
@@ -52,6 +53,7 @@ export function ResetPasswordControl({ userId, accountName }: { userId: number; 
           </div>
           <small>Password ini hanya ditampilkan sekali dan tidak disimpan sebagai teks.</small>
         </div> : <form action={action} className="reset-confirm" onSubmit={() => setDismissed(false)}>
+          <MutationRequestInput resetKey={state} />
           <input type="hidden" name="userId" value={userId} />
           <p>Reset akun <strong>{accountName}</strong> sekarang?</p>
           {state.error && <p className="form-message error" role="alert">{state.error}</p>}

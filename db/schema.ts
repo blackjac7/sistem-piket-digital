@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
@@ -127,7 +128,10 @@ export const dutySchedules = pgTable("duty_schedules", {
   isActive: boolean("is_active").notNull().default(true),
   inactiveAt: timestamp("inactive_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [index("duty_schedule_lookup_idx").on(table.teacherId, table.weekday, table.shift)]);
+}, (table) => [
+  uniqueIndex("duty_schedule_active_unique").on(table.teacherId, table.weekday, table.shift).where(sql`${table.isActive} = true`),
+  index("duty_schedule_lookup_idx").on(table.teacherId, table.weekday, table.shift),
+]);
 
 export const dutyCompletions = pgTable("duty_completions", {
   id: serial("id").primaryKey(),
@@ -164,10 +168,14 @@ export const attendanceRecords = pgTable("attendance_records", {
 
 export const auditLogs = pgTable("audit_logs", {
   id: serial("id").primaryKey(),
+  requestId: varchar("request_id", { length: 36 }),
   userId: integer("user_id").references(() => users.id, { onDelete: "set null" }),
   action: varchar("action", { length: 80 }).notNull(),
   entity: varchar("entity", { length: 80 }).notNull(),
   entityId: varchar("entity_id", { length: 40 }),
   description: text("description").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [index("audit_created_idx").on(table.createdAt)]);
+}, (table) => [
+  uniqueIndex("audit_logs_request_id_unique").on(table.requestId),
+  index("audit_created_idx").on(table.createdAt),
+]);

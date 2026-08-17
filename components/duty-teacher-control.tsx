@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import { BadgeCheck, Check, Copy, KeyRound, LoaderCircle, Pencil, UserMinus, X } from "lucide-react";
 import { removeDutyTeacherAction, setDutyTeacherAction } from "@/app/actions";
 import { AppDialog } from "./app-dialog";
+import { MutationRequestInput } from "./mutation-request-input";
 
 function AssignmentSubmitButton() {
   const { pending } = useFormStatus();
@@ -50,6 +51,7 @@ export function DutyTeacherControl({ teacherId, teacherName, isDutyTeacher, user
         </div>
         <small>Password sementara hanya ditampilkan sekali. Guru wajib menggantinya saat login pertama.</small>
       </div> : assignState.success ? <div className="dialog-result" role="status"><p className="dialog-message">{assignState.success}</p><div className="dialog-actions"><button className="button button-primary" type="button" onClick={finishAssignment}><Check aria-hidden="true" /> Selesai</button></div></div> : <form action={assignAction} className="form-stack">
+        <MutationRequestInput resetKey={assignState} />
         <input type="hidden" name="teacherId" value={teacherId} />
         <label className="field"><span>Username guru piket</span><input name="username" defaultValue={username || suggestedUsername} minLength={3} maxLength={60} pattern="[a-z0-9._-]{3,60}" autoCapitalize="none" autoCorrect="off" spellCheck={false} data-dialog-autofocus required /></label>
         <p className="helper-text">Saran otomatis: <span className="mono">{suggestedUsername}</span>. Admin dapat menggantinya, tetapi username wajib unik.</p>
@@ -60,6 +62,7 @@ export function DutyTeacherControl({ teacherId, teacherName, isDutyTeacher, user
 
     <AppDialog open={removeOpen} onClose={() => { if (!removeState.success) setRemoveOpen(false); }} title={removeState.success ? "Status guru piket diperbarui" : `Lepas ${teacherName} dari guru piket?`} description={removeState.success ? "Akses operasional dan jadwal aktif sudah dinonaktifkan tanpa menghapus histori." : "Akun operasional akan dinonaktifkan dan jadwal aktif ditutup. Histori absensi tetap tersimpan."} tone={removeState.success ? "success" : "danger"} dismissible={!removeState.success}>
       {removeState.success ? <div className="dialog-result" role="status"><p className="dialog-message">{removeState.success}</p><div className="dialog-actions"><button className="button button-primary" type="button" onClick={finishAssignment}><Check aria-hidden="true" /> Selesai</button></div></div> : <form action={removeAction} className="reset-confirm">
+        <MutationRequestInput resetKey={removeState} />
         <input type="hidden" name="teacherId" value={teacherId} />
         <p>Guru ini tidak dapat login sebagai guru piket sampai ditetapkan kembali oleh Admin.</p>
         {removeState.error && <p className="form-message error" role="alert">{removeState.error}</p>}

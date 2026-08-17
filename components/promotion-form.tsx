@@ -12,7 +12,17 @@ export function PromotionForm({ classes, defaultTargetYear }: { classes: SchoolC
   const [fileName, setFileName] = useState("");
   const graduatingTotal = classes.filter((item) => item.grade === 9).reduce((total, item) => total + item.total, 0);
 
-  return <ActionForm action={promoteAcademicYearAction} submitLabel="Proses kenaikan kelas" resetOnSuccess={false}>
+  return <ActionForm
+    action={promoteAcademicYearAction}
+    submitLabel="Proses kenaikan kelas"
+    resetOnSuccess={false}
+    confirm={{
+      title: "Proses kenaikan kelas?",
+      description: "Ini adalah perubahan data besar untuk seluruh siswa aktif.",
+      message: `Pastikan tahun ajaran, penempatan kelas, dan backup sudah benar. ${graduatingTotal} siswa kelas 9 akan ditandai lulus.`,
+      confirmLabel: "Ya, proses sekarang",
+    }}
+  >
     <fieldset className="promotion-mode-picker">
       <legend>1. Pilih metode penempatan siswa</legend>
       <label className={mode === "ROMBEL_TETAP" ? "active" : ""}>

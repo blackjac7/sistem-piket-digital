@@ -43,6 +43,13 @@
       "when": 1786712115103,
       "tag": "0005_chilly_shiver_man",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786990841528,
+      "tag": "0006_demonic_machine_man",
+      "breakpoints": true
     }
   ]
 }
