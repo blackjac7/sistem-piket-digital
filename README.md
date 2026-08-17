@@ -47,6 +47,32 @@ Seluruh akun awal wajib membuat kata sandi pribadi setelah login pertama. Kata s
 
 Buka `http://localhost:3000`.
 
+## Deploy dengan Docker di Northflank
+
+Repository ini sudah menyediakan Dockerfile multi-stage untuk Next.js production. Northflank dapat melakukan build langsung dari repository dan menjalankan image hasil build tersebut.
+
+1. Buat service baru di Northflank dengan tipe **Combined** atau **Deployment** dari repository Git.
+2. Pilih build type **Dockerfile** dan gunakan path `Dockerfile` pada root repository. Biarkan target build kosong agar Northflank memakai stage `runner` sebagai image aplikasi.
+3. Tambahkan port `3000` dengan protokol **HTTP** dan jadikan **public**. Northflank juga dapat mendeteksi port ini dari instruksi `EXPOSE` pada Dockerfile. Server Next.js akan memakai nilai `PORT` yang diberikan platform.
+4. Tambahkan environment variables sebagai secret/runtime variables, minimal:
+
+   ```env
+   DB_CONNECTION=postgresql://...
+   SESSION_COOKIE_NAME=smp_ip_yakin_session
+   WEBAUTHN_RP_NAME=SMP IP YAKIN
+   WEBAUTHN_RP_ID=piket.smpipyakin.sch.id
+   WEBAUTHN_ORIGIN=https://piket.smpipyakin.sch.id
+   ```
+
+5. Tambahkan **readiness probe** HTTP pada port `3000` dengan path `/api/health`. Probe ini cukup memakai metode `GET`; endpoint akan mengembalikan status `200` tanpa cache.
+6. Deploy service aplikasi. Untuk migrasi database, buat **job satu kali** dari repository yang sama dengan build type **Dockerfile**, pilih target build `migration`, dan tambahkan `DB_CONNECTION` production sebagai secret. Jalankan command berikut sebelum deployment pertama dan setiap kali ada migration baru:
+
+   ```powershell
+   npm run db:migrate
+   ```
+
+Target `migration` sengaja membawa `drizzle-kit` dan folder `drizzle/`, sedangkan image aplikasi tetap minimal. Jangan menyalin `.env.local` ke image dan jangan menjalankan `db:reset` atau `db:seed` pada database production yang sudah berisi data nyata. Docker image hanya menjalankan aplikasi; PostgreSQL tetap menjadi service database terpisah.
+
 ## Fitur
 
 - Login dan sesi tersimpan di database dengan cookie HTTP-only.

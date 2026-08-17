@@ -29,6 +29,7 @@ const privateRoutes = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  output: "standalone",
   poweredByHeader: false,
   turbopack: { root: path.resolve(process.cwd()) },
   experimental: {
