@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { NavigationLoading } from "@/components/navigation-loading";
+import { LaunchSplash } from "@/components/launch-splash";
 import { PwaManager } from "@/components/pwa-manager";
 import { siteConfig } from "@/lib/site-config";
 
@@ -33,5 +34,5 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="id"><body className={`${geist.variable} ${geistMono.variable}`}><Suspense fallback={null}><NavigationLoading /></Suspense>{children}<PwaManager /></body></html>;
+  return <html lang="id"><body className={`${geist.variable} ${geistMono.variable}`}><LaunchSplash /><Suspense fallback={null}><NavigationLoading /></Suspense>{children}<PwaManager /></body></html>;
 }
