@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { siteConfig } from "@/lib/site-config";
+import type { MonitoringData } from "@/lib/monitoring";
 
 const headerFill = "123A5A";
 const accentFill = "E9B824";
@@ -113,13 +114,7 @@ export async function createStudentExport(rows: Array<{ studentNumber: string | 
   return workbook.xlsx.writeBuffer();
 }
 
-export async function createMonitoringReport(data: {
-  start: string;
-  end: string;
-  summary: { scheduled: number; completed: number; overdue: number; completionRate: number; totalActivity: number };
-  occurrences: Array<{ date: string; weekday: string; teacherName: string; shift: string; startTime: string; endTime: string; status: string; completedAt: Date | null; attendanceCount: number }>;
-  teacherSummary: Array<{ teacherName: string; shift: string; scheduled: number; completed: number; attendanceCount: number }>;
-}, attendance: Array<{ date: string; type: string; name: string; className: string | null; status: string; notes: string | null; recorder: string }>) {
+export async function createMonitoringReport(data: MonitoringData) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = siteConfig.schoolName;
   workbook.created = new Date();
@@ -135,26 +130,62 @@ export async function createMonitoringReport(data: {
     ["Jadwal piket", data.summary.scheduled],
     ["Piket selesai", data.summary.completed],
     ["Belum diselesaikan", data.summary.overdue],
+    ["Sedang berjalan", data.summary.inProgress],
     ["Keterlaksanaan", `${data.summary.completionRate}%`],
     ["Catatan absensi dibuat", data.summary.totalActivity],
+    ["Absensi siswa", data.attendanceSummary.students],
+    ["Absensi guru", data.attendanceSummary.teachers],
+    ["Sudah dikonfirmasi", data.attendanceSummary.confirmed],
+    ["Menunggu konfirmasi", data.attendanceSummary.pending],
   ]);
   summary.getCell("A1").font = { bold: true, size: 16, color: { argb: `FF${headerFill}` } };
   summary.getRow(4).eachCell((cell) => { cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${headerFill}` } }; });
 
+  const trend = workbook.addWorksheet("Tren Harian");
+  trend.addRow(["Tanggal", "Jadwal", "Selesai", "Keterlaksanaan", "Total Absensi", "Sakit", "Izin", "Alpa", "Dinas"]);
+  data.trend.forEach((item) => {
+    const rate = item.scheduled ? item.completed / item.scheduled : 0;
+    trend.addRow([item.date, item.scheduled, item.completed, rate, item.attendanceCount, item.attendanceStatuses.SAKIT, item.attendanceStatuses.IZIN, item.attendanceStatuses.ALPA, item.attendanceStatuses.DINAS]);
+  });
+  styleSheet(trend, [16, 12, 12, 18, 16, 12, 12, 12, 12]);
+  trend.getColumn(4).numFmt = "0%";
+
+  const status = workbook.addWorksheet("Status Absensi");
+  status.addRow(["Status", "Jumlah", "Persentase"]);
+  const statusLabels = { SAKIT: "Sakit", IZIN: "Izin", ALPA: "Alpa", DINAS: "Dinas" } as const;
+  for (const value of Object.keys(statusLabels) as Array<keyof typeof statusLabels>) {
+    status.addRow([statusLabels[value], data.attendanceSummary.statusCounts[value], data.attendanceSummary.total ? data.attendanceSummary.statusCounts[value] / data.attendanceSummary.total : 0]);
+  }
+  status.addRow(["Total", data.attendanceSummary.total, 1]);
+  styleSheet(status, [22, 14, 18]);
+  status.getColumn(3).numFmt = "0%";
+
+  const classes = workbook.addWorksheet("Per Kelas");
+  classes.addRow(["Kelas", "Total", "Sakit", "Izin", "Alpa", "Dinas", "Menunggu Konfirmasi"]);
+  data.classSummary.forEach((item) => classes.addRow([item.className, item.total, item.SAKIT, item.IZIN, item.ALPA, item.DINAS, item.pending]));
+  styleSheet(classes, [18, 14, 14, 14, 14, 14, 24]);
+
+  const shifts = workbook.addWorksheet("Per Shift");
+  shifts.addRow(["Shift", "Jadwal", "Selesai", "Belum", "Berjalan", "Keterlaksanaan", "Catatan Absensi"]);
+  data.shiftSummary.forEach((item) => shifts.addRow([item.shift, item.scheduled, item.completed, item.overdue, item.inProgress, item.completionRate / 100, item.attendanceCount]));
+  styleSheet(shifts, [14, 14, 14, 14, 14, 20, 20]);
+  shifts.getColumn(6).numFmt = "0%";
+
   const duties = workbook.addWorksheet("Keterlaksanaan Piket");
   duties.addRow(["Tanggal", "Hari", "Guru Piket", "Shift", "Jam", "Status", "Waktu Selesai", "Jumlah Catatan"]);
-  data.occurrences.forEach((item) => duties.addRow([item.date, item.weekday, item.teacherName, item.shift, `${item.startTime.slice(0, 5)}-${item.endTime.slice(0, 5)}`, item.status, item.completedAt || "", item.attendanceCount]));
+  data.occurrences.forEach((item) => duties.addRow([item.date, item.weekday, item.teacherName, item.shift, `${item.startTime.slice(0, 5)}-${item.endTime.slice(0, 5)}`, item.status === "SELESAI" ? "Selesai" : item.status === "BERJALAN" ? "Berjalan" : "Belum", item.completedAt || "", item.attendanceCount]));
   styleSheet(duties, [16, 14, 30, 12, 16, 16, 22, 18]);
 
   const teachersSheet = workbook.addWorksheet("Ringkasan Per Guru");
-  teachersSheet.addRow(["Guru Piket", "Shift", "Jadwal", "Selesai", "Keterlaksanaan", "Jumlah Catatan"]);
-  data.teacherSummary.forEach((item) => teachersSheet.addRow([item.teacherName, item.shift, item.scheduled, item.completed, item.scheduled ? `${Math.round(item.completed / item.scheduled * 100)}%` : "0%", item.attendanceCount]));
-  styleSheet(teachersSheet, [30, 12, 14, 14, 20, 18]);
+  teachersSheet.addRow(["Guru Piket", "Shift", "Jadwal", "Selesai", "Belum", "Berjalan", "Keterlaksanaan", "Jumlah Catatan"]);
+  data.teacherSummary.forEach((item) => teachersSheet.addRow([item.teacherName, item.shift, item.scheduled, item.completed, item.overdue, item.inProgress, item.completionRate / 100, item.attendanceCount]));
+  styleSheet(teachersSheet, [30, 12, 14, 14, 14, 14, 20, 18]);
+  teachersSheet.getColumn(7).numFmt = "0%";
 
   const attendanceSheet = workbook.addWorksheet("Data Absensi");
-  attendanceSheet.addRow(["Tanggal", "Jenis", "Nama", "Kelas/Unit", "Status", "Keterangan", "Pencatat"]);
-  attendance.forEach((item) => attendanceSheet.addRow([item.date, item.type, item.name, item.className || "Guru", item.status, item.notes || "", item.recorder]));
-  styleSheet(attendanceSheet, [16, 14, 30, 14, 14, 36, 28]);
+  attendanceSheet.addRow(["Tanggal", "Jenis", "Nama", "Kelas/Unit", "Status", "Konfirmasi", "Keterangan", "Pencatat"]);
+  data.attendance.forEach((item) => attendanceSheet.addRow([item.date, item.type === "SISWA" ? "Siswa" : "Guru", item.name, item.className || "Guru", statusLabels[item.status], item.confirmed ? "Sudah" : "Belum", item.notes || "", item.recorder]));
+  styleSheet(attendanceSheet, [16, 14, 30, 14, 14, 18, 36, 28]);
   return workbook.xlsx.writeBuffer();
 }
 
