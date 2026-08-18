@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 
+const isVercel = process.env.VERCEL === "1";
+
 const securityHeaders = [
   { key: "X-DNS-Prefetch-Control", value: "off" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -29,7 +31,8 @@ const privateRoutes = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  output: "standalone",
+  // Vercel packages Next.js output itself; standalone is only needed by Docker.
+  ...(!isVercel && { output: "standalone" as const }),
   poweredByHeader: false,
   turbopack: { root: path.resolve(process.cwd()) },
   experimental: {
