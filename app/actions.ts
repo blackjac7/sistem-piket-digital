@@ -11,6 +11,7 @@ import { loadWorkbook } from "@/lib/excel";
 import { generateTemporaryPassword, hashPassword, needsPasswordRehash, validateNewPassword, verifyPassword } from "@/lib/password";
 import { internalErrorMessage, isUniqueViolation, reportServerError } from "@/lib/server-errors";
 import { normalizeTeacherName, usernameFromTeacherName, usernamePattern } from "@/lib/teacher-names";
+import { weekdayNames } from "@/lib/utils";
 
 export type ActionState = { error?: string; success?: string; temporaryPassword?: string; accountName?: string };
 
@@ -418,6 +419,32 @@ export async function deleteScheduleAction(formData: FormData) {
   if (!updated.length) return;
   await db.insert(auditLogs).values({ userId: user.id, action: "DEACTIVATE", entity: "SCHEDULE", entityId: String(id.data), description: `Menonaktifkan jadwal piket #${id.data} tanpa menghapus riwayat.` });
   revalidatePath("/schedule");
+}
+
+export async function moveScheduleAction(scheduleId: number, weekday: number): Promise<ActionState> {
+  const user = await requireAdmin();
+  const parsedScheduleId = z.coerce.number().int().positive().safeParse(scheduleId);
+  const parsedWeekday = z.coerce.number().int().min(1).max(6).safeParse(weekday);
+  if (!parsedScheduleId.success || !parsedWeekday.success) return { error: "Hari jadwal tidak valid." };
+
+  const [schedule] = await db.select({ id: dutySchedules.id, teacherId: dutySchedules.teacherId, weekday: dutySchedules.weekday, shift: dutySchedules.shift, teacher: teachers.name }).from(dutySchedules).innerJoin(teachers, eq(dutySchedules.teacherId, teachers.id)).where(and(eq(dutySchedules.id, parsedScheduleId.data), eq(dutySchedules.isActive, true))).limit(1);
+  if (!schedule) return { error: "Jadwal tidak ditemukan atau sudah tidak aktif." };
+  if (schedule.weekday === parsedWeekday.data) return { success: "Jadwal sudah berada di hari tersebut." };
+
+  const duplicate = await db.select({ id: dutySchedules.id }).from(dutySchedules).where(and(eq(dutySchedules.teacherId, schedule.teacherId), eq(dutySchedules.weekday, parsedWeekday.data), eq(dutySchedules.shift, schedule.shift), eq(dutySchedules.isActive, true))).limit(1);
+  if (duplicate[0]) return { error: "Guru tersebut sudah memiliki jadwal pada hari dan shift tujuan." };
+
+  try {
+    await db.transaction(async (tx) => {
+      await tx.update(dutySchedules).set({ weekday: parsedWeekday.data }).where(and(eq(dutySchedules.id, schedule.id), eq(dutySchedules.isActive, true)));
+      await tx.insert(auditLogs).values({ userId: user.id, action: "UPDATE", entity: "SCHEDULE", entityId: String(schedule.id), description: `Memindahkan jadwal piket ${schedule.teacher} dari ${weekdayNames[schedule.weekday]} ke ${weekdayNames[parsedWeekday.data]}.` });
+    });
+  } catch (error) {
+    if (isUniqueViolation(error, "duty_schedule_active_unique")) return { error: "Guru tersebut sudah memiliki jadwal pada hari dan shift tujuan." };
+    return { error: internalErrorMessage(reportServerError("move-schedule", error)) };
+  }
+  revalidatePath("/schedule");
+  return { success: "Jadwal piket berhasil dipindahkan." };
 }
 
 export async function updateHomeroomAction(formData: FormData) {
