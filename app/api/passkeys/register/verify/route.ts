@@ -4,7 +4,8 @@ import { db } from "@/db";
 import { auditLogs, passkeys, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
-import { challengeCookieName, expectedOrigin, flowCookieName, rpID } from "@/lib/webauthn";
+import { consumeWebAuthnChallenge } from "@/lib/webauthn-challenges";
+import { challengeCookieName, expectedOrigin, rpID } from "@/lib/webauthn";
 import { reportServerError } from "@/lib/server-errors";
 
 export async function POST(request: Request) {
@@ -13,14 +14,14 @@ export async function POST(request: Request) {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const cookieStore = await cookies();
-    const challenge = cookieStore.get(challengeCookieName)?.value;
-    const flow = cookieStore.get(flowCookieName)?.value;
-    if (!challenge || flow !== `register:${user.id}`) return Response.json({ error: "Permintaan passkey telah kedaluwarsa." }, { status: 400 });
-
+    const token = cookieStore.get(challengeCookieName)?.value;
     cookieStore.delete(challengeCookieName);
-    cookieStore.delete(flowCookieName);
+    if (!token) return Response.json({ error: "Permintaan passkey telah kedaluwarsa." }, { status: 400 });
+    const challenge = await consumeWebAuthnChallenge(token, "register");
+    if (!challenge || challenge.userId !== user.id) return Response.json({ error: "Permintaan passkey telah kedaluwarsa atau sudah digunakan." }, { status: 400 });
+
     const response = await request.json() as RegistrationResponseJSON;
-    const result = await verifyRegistrationResponse({ response, expectedChallenge: challenge, expectedOrigin, expectedRPID: rpID, requireUserVerification: true });
+    const result = await verifyRegistrationResponse({ response, expectedChallenge: challenge.challenge, expectedOrigin, expectedRPID: rpID, requireUserVerification: true });
     if (!result.verified) return Response.json({ error: "Passkey gagal diverifikasi." }, { status: 400 });
     const { credential, credentialDeviceType, credentialBackedUp } = result.registrationInfo;
     await db.insert(passkeys).values({ userId: user.id, credentialId: credential.id, publicKey: Buffer.from(credential.publicKey).toString("base64url"), counter: credential.counter, deviceType: credentialDeviceType, backedUp: credentialBackedUp, transports: response.response.transports ? JSON.stringify(response.response.transports) : null, name: "Sidik jari / wajah perangkat" });

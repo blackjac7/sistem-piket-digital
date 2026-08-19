@@ -6,6 +6,16 @@ import { startRegistration } from "@simplewebauthn/browser";
 import { useRouter } from "next/navigation";
 import { siteConfig } from "@/lib/site-config";
 
+function passkeyErrorMessage(error: unknown) {
+  if (error instanceof DOMException && error.name === "NotAllowedError") {
+    return "Pendaftaran dibatalkan atau perangkat tidak mengizinkan passkey. Coba lagi.";
+  }
+  if (error instanceof Error && /timed out|not allowed|cancelled|canceled/i.test(error.message)) {
+    return "Pendaftaran dibatalkan atau perangkat tidak mengizinkan passkey. Coba lagi.";
+  }
+  return error instanceof Error ? error.message : "Pendaftaran passkey gagal.";
+}
+
 export function PasskeyRegisterCard({ count, onboarding = false }: { count: number; onboarding?: boolean }) {
   const [status, setStatus] = useState<"idle" | "requesting" | "verifying" | "redirecting">("idle");
   const [message, setMessage] = useState("");
@@ -22,12 +32,12 @@ export function PasskeyRegisterCard({ count, onboarding = false }: { count: numb
       const verificationResponse = await fetch("/api/passkeys/register/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(credential) });
       const result = await verificationResponse.json();
       if (!verificationResponse.ok || !result.verified) throw new Error(result.error || "Verifikasi gagal.");
-      setMessage("Passkey berhasil didaftarkan. Sekarang Anda dapat login tanpa password.");
+      setMessage("Passkey berhasil didaftarkan. Anda dapat login tanpa username dan password.");
       if (onboarding) {
         setStatus("redirecting");
         setTimeout(() => { window.dispatchEvent(new CustomEvent("app-loading-start", { detail: { label: "Membuka dashboard" } })); router.push("/dashboard"); router.refresh(); }, 900);
       } else setStatus("idle");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Pendaftaran passkey gagal."); setStatus("idle"); }
+    } catch (error) { setMessage(passkeyErrorMessage(error)); setStatus("idle"); }
   }
   const loading = status !== "idle";
   const buttonLabel = status === "requesting" ? "Ikuti petunjuk perangkat..." : status === "verifying" ? "Memverifikasi perangkat..." : status === "redirecting" ? "Membuka dashboard..." : onboarding ? "Aktifkan passkey sekarang" : "Daftarkan perangkat ini";

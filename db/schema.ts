@@ -118,6 +118,20 @@ export const passkeys = pgTable("passkeys", {
   lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
 }, (table) => [uniqueIndex("passkeys_credential_unique").on(table.credentialId), index("passkeys_user_idx").on(table.userId)]);
 
+export const webauthnChallenges = pgTable("webauthn_challenges", {
+  id: serial("id").primaryKey(),
+  tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+  challenge: text("challenge").notNull(),
+  flow: varchar("flow", { length: 20 }).notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("webauthn_challenges_token_unique").on(table.tokenHash),
+  index("webauthn_challenges_expiry_idx").on(table.expiresAt),
+]);
+
 export const dutySchedules = pgTable("duty_schedules", {
   id: serial("id").primaryKey(),
   teacherId: integer("teacher_id").notNull().references(() => teachers.id, { onDelete: "cascade" }),

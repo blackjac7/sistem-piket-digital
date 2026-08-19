@@ -9,5 +9,5 @@ import { requireUser } from "@/lib/auth";
 export default async function SecurityPage() {
   const user = await requireUser();
   const [result] = await db.select({ value: count() }).from(passkeys).where(eq(passkeys.userId, user.id));
-  return <><PageHeader title="Keamanan login" description="Kelola kata sandi dan daftarkan sidik jari, pengenalan wajah, atau PIN perangkat melalui passkey/WebAuthn." /><div className="security-grid"><section className="panel security-password-panel"><div className="panel-header"><div><h2>Ubah kata sandi</h2><p>Perubahan akan mengeluarkan sesi lain untuk melindungi akun Anda.</p></div></div><PasswordChangeForm /></section><PasskeyRegisterCard count={result.value} /></div></>;
+  return <><PageHeader title="Keamanan login" description="Kelola kata sandi dan passkey untuk masuk tanpa mengetik username atau password." /><div className="security-grid"><section className="panel security-password-panel"><div className="panel-header"><div><h2>Ubah kata sandi</h2><p>Perubahan akan mengeluarkan sesi lain untuk melindungi akun Anda.</p></div></div><PasswordChangeForm /></section><PasskeyRegisterCard count={result.value} /></div></>;
 }

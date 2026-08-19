@@ -4,7 +4,8 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { passkeys } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { challengeCookieName, flowCookieName, rpID, rpName } from "@/lib/webauthn";
+import { createWebAuthnChallenge } from "@/lib/webauthn-challenges";
+import { challengeCookieName, challengeCookieOptions, rpID, rpName } from "@/lib/webauthn";
 import { reportServerError } from "@/lib/server-errors";
 
 export async function POST() {
@@ -15,13 +16,13 @@ export async function POST() {
     const options = await generateRegistrationOptions({
       rpName, rpID, userID: new TextEncoder().encode(String(user.id)), userName: user.username, userDisplayName: user.name,
       attestationType: "none", preferredAuthenticatorType: "localDevice",
-      authenticatorSelection: { residentKey: "preferred", userVerification: "required" },
+      timeout: 60_000,
+      authenticatorSelection: { residentKey: "required", userVerification: "required" },
       excludeCredentials: credentials.map((item) => ({ id: item.id, transports: item.transports ? JSON.parse(item.transports) : undefined })),
     });
+    const token = await createWebAuthnChallenge({ challenge: options.challenge, flow: "register", userId: user.id });
     const cookieStore = await cookies();
-    const cookieOptions = { httpOnly: true, sameSite: "strict" as const, secure: process.env.NODE_ENV === "production", path: "/", maxAge: 300, priority: "high" as const };
-    cookieStore.set(challengeCookieName, options.challenge, cookieOptions);
-    cookieStore.set(flowCookieName, `register:${user.id}`, cookieOptions);
+    cookieStore.set(challengeCookieName, token, challengeCookieOptions);
     return Response.json(options);
   } catch (error) {
     const reference = reportServerError("passkey-register-options", error);

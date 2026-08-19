@@ -23,7 +23,7 @@ export default async function LoginPage() {
         <div className="login-card">
           <span className="environment-badge">RUANG KERJA SEKOLAH</span>
           <h2>Masuk ke ruang piket</h2>
-          <p>Gunakan akun yang didaftarkan oleh Admin IT sekolah.</p>
+          <p>Pilih passkey di perangkat, atau gunakan akun dari Admin IT sekolah.</p>
           <LoginForm />
           <p className="login-note">Sesi dilindungi cookie HTTP-only dan berakhir otomatis setelah tujuh hari.</p>
         </div>
