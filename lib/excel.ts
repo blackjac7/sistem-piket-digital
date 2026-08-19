@@ -114,6 +114,37 @@ export async function createStudentExport(rows: Array<{ studentNumber: string | 
   return workbook.xlsx.writeBuffer();
 }
 
+export async function createAttendanceReport(rows: Array<{ type: "SISWA" | "GURU"; name: string; className: string | null; status: string; date: string; notes: string | null; confirmed: boolean; recorder: string }>) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = siteConfig.schoolName;
+  workbook.created = new Date();
+  const labels: Record<string, string> = { SAKIT: "Sakit", IZIN: "Izin", ALPA: "Alpa", DINAS: "Dinas" };
+  const summary = workbook.addWorksheet("Ringkasan");
+  summary.getColumn(1).width = 28; summary.getColumn(2).width = 18; summary.getColumn(3).width = 18;
+  summary.addRow([`Rekap Absensi - ${siteConfig.schoolName}`]);
+  summary.addRow(["Dibuat", new Date()]); summary.addRow([]); summary.addRow(["Indikator", "Jumlah", "Persentase"]);
+  const total = rows.length;
+  const values: Array<[string, number, number]> = [
+    ["Total catatan", total, 1],
+    ["Absensi siswa", rows.filter((row) => row.type === "SISWA").length, total ? rows.filter((row) => row.type === "SISWA").length / total : 0],
+    ["Absensi guru", rows.filter((row) => row.type === "GURU").length, total ? rows.filter((row) => row.type === "GURU").length / total : 0],
+    ["Sudah dikonfirmasi", rows.filter((row) => row.confirmed).length, total ? rows.filter((row) => row.confirmed).length / total : 0],
+    ["Menunggu konfirmasi", rows.filter((row) => !row.confirmed).length, total ? rows.filter((row) => !row.confirmed).length / total : 0],
+    ...(["SAKIT", "IZIN", "ALPA", "DINAS"] as const).map((status) => { const value = rows.filter((row) => row.status === status).length; return [labels[status], value, total ? value / total : 0] as [string, number, number]; }),
+  ];
+  values.forEach((row) => summary.addRow(row));
+  summary.getRow(1).font = { bold: true, size: 16, color: { argb: `FF${headerFill}` } };
+  summary.getRow(4).eachCell((cell) => { cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: `FF${headerFill}` } }; });
+  summary.getColumn(3).numFmt = "0%"; summary.views = [{ state: "frozen", ySplit: 4 }];
+
+  const detail = workbook.addWorksheet("Data Absensi");
+  detail.addRow(["Tanggal", "Jenis", "Nama", "Kelas/Unit", "Status", "Konfirmasi", "Keterangan", "Pencatat"]);
+  rows.forEach((row) => detail.addRow([row.date, row.type === "SISWA" ? "Siswa" : "Guru", row.name, row.className || "Guru", labels[row.status] || row.status, row.confirmed ? "Sudah" : "Belum", row.notes || "", row.recorder]));
+  styleSheet(detail, [16, 14, 32, 16, 16, 20, 40, 28]);
+  detail.eachRow((row, rowNumber) => { if (rowNumber > 1 && rowNumber % 2 === 0) row.eachCell((cell) => { cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF7FAF9" } }; }); });
+  return workbook.xlsx.writeBuffer();
+}
+
 export async function createMonitoringReport(data: MonitoringData) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = siteConfig.schoolName;

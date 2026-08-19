@@ -120,22 +120,6 @@ PWA harus disajikan melalui HTTPS di produksi. Setelah deployment, hapus instala
 
 ## Impor data Excel
 
-### Migrasi Google Forms
-
-Respons form guru dapat diekspor dari Google Forms sebagai CSV, lalu dimasukkan tanpa duplikasi:
-
-```powershell
-npm run import:gform -- "C:\path\respons-guru.csv"
-```
-
-Ekspor respons setiap form kelas dengan cara yang sama jika ingin memindahkan absensi siswa lama. Jalankan sekali untuk setiap kelas:
-
-```powershell
-npm run import:gform:kelas -- "C:\path\7A.csv" 7A
-```
-
-Skrip mengenali kolom `NAMA GURU`, `TANGGAL`, dan kolom status `KETERANGAN SAKIT`, `KETERANGAN IJIN/IZIN`, atau `KETERANGAN ALPA`. Data yang sudah masuk tidak dibuat ulang. Nama siswa yang muncul di respons tetapi belum ada di roster dibuat dengan nomor internal `GF-...`; lengkapi NIS melalui menu Data siswa setelah migrasi.
-
 Gunakan template dari aplikasi agar nama kolom, format, dan pilihan data tetap konsisten.
 
 1. Buka menu **Data siswa** atau **Data guru**.
