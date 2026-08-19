@@ -125,7 +125,7 @@ async function seed() {
     } else {
       await db.insert(users).values({ teacherId: teacher.id, name: teacher.name, username: dutyTeacher.username, passwordHash, role: "GURU_PIKET", mustChangePassword: true }).onConflictDoUpdate({ target: users.username, set: { teacherId: teacher.id, name: teacher.name, role: "GURU_PIKET", isActive: true, updatedAt: new Date() } });
     }
-    const [existingSchedule] = await db.select({ id: dutySchedules.id }).from(dutySchedules).where(and(eq(dutySchedules.teacherId, teacher.id), eq(dutySchedules.weekday, dutyTeacher.weekday), eq(dutySchedules.shift, "PAGI"), eq(dutySchedules.isActive, true))).limit(1);
+    const [existingSchedule] = await db.select({ id: dutySchedules.id }).from(dutySchedules).where(and(eq(dutySchedules.weekday, dutyTeacher.weekday), eq(dutySchedules.isActive, true))).limit(1);
     if (!existingSchedule) await db.insert(dutySchedules).values({ teacherId: teacher.id, weekday: dutyTeacher.weekday, shift: "PAGI", startTime: "06:30:00", endTime: dutyTeacher.weekday === 5 ? "11:30:00" : "14:00:00" });
   }
 

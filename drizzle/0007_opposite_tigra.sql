@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "duty_schedule_active_day_unique" ON "duty_schedules" USING btree ("weekday") WHERE "duty_schedules"."is_active" = true;

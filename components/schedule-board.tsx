@@ -7,13 +7,11 @@ import { GripVertical } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
 import { deleteScheduleAction, moveScheduleAction } from "@/app/actions";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
-import { StatusPill } from "@/components/status-pill";
 
 type ScheduleItem = {
   id: number;
   teacher: string;
   weekday: number;
-  shift: "PAGI" | "SIANG";
   start: string;
   end: string;
 };
@@ -32,8 +30,7 @@ function ScheduleEntry({ item, dayLabel, disabled }: { item: ScheduleItem; dayLa
     <button className="schedule-drag-handle" type="button" aria-label={`Pindahkan jadwal ${item.teacher}`} title="Seret untuk memindahkan jadwal" disabled={disabled} {...attributes} {...listeners}><GripVertical aria-hidden="true" /></button>
     <span className="avatar">{initials(item.teacher)}</span>
     <div><strong>{item.teacher}</strong><small>{item.start.slice(0, 5)}–{item.end.slice(0, 5)}</small></div>
-    <StatusPill tone="info">{item.shift}</StatusPill>
-    <form action={deleteScheduleAction}><input type="hidden" name="id" value={item.id} /><ConfirmSubmitButton label={`Hapus jadwal ${item.teacher}`} title="Hapus jadwal piket?" description="Jadwal akan langsung hilang dari penugasan mingguan." message={`Hapus jadwal ${item.teacher} pada hari ${dayLabel}, shift ${item.shift.toLowerCase()}?`} confirmLabel="Hapus jadwal" /></form>
+    <form action={deleteScheduleAction}><input type="hidden" name="id" value={item.id} /><ConfirmSubmitButton label={`Hapus jadwal ${item.teacher}`} title="Hapus jadwal piket?" description="Jadwal akan langsung hilang dari penugasan mingguan." message={`Hapus jadwal ${item.teacher} pada hari ${dayLabel}?`} confirmLabel="Hapus jadwal" /></form>
   </div>;
 }
 
@@ -93,6 +90,6 @@ export function ScheduleBoard({ schedules, days }: { schedules: ScheduleItem[]; 
     <div className={`schedule-board${isPending ? " is-saving" : ""}`} aria-busy={isPending}>
       {days.map((day) => <ScheduleDay key={day.value} day={day} items={items.filter((item) => item.weekday === day.value)} disabled={isPending} />)}
     </div>
-    <DragOverlay>{activeItem ? <div className="schedule-entry schedule-entry-overlay"><span className="avatar">{initials(activeItem.teacher)}</span><div><strong>{activeItem.teacher}</strong><small>{activeItem.start.slice(0, 5)}–{activeItem.end.slice(0, 5)}</small></div><StatusPill tone="info">{activeItem.shift}</StatusPill></div> : null}</DragOverlay>
+    <DragOverlay>{activeItem ? <div className="schedule-entry schedule-entry-overlay"><span className="avatar">{initials(activeItem.teacher)}</span><div><strong>{activeItem.teacher}</strong><small>{activeItem.start.slice(0, 5)}–{activeItem.end.slice(0, 5)}</small></div></div> : null}</DragOverlay>
   </DndContext>;
 }

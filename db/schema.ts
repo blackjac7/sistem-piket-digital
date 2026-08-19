@@ -130,6 +130,7 @@ export const dutySchedules = pgTable("duty_schedules", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("duty_schedule_active_unique").on(table.teacherId, table.weekday, table.shift).where(sql`${table.isActive} = true`),
+  uniqueIndex("duty_schedule_active_day_unique").on(table.weekday).where(sql`${table.isActive} = true`),
   index("duty_schedule_lookup_idx").on(table.teacherId, table.weekday, table.shift),
 ]);
 

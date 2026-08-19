@@ -141,7 +141,7 @@ export async function completeDutyAction(formData: FormData) {
   if (!schedule) return;
   const inserted = await db.insert(dutyCompletions).values({ scheduleId: schedule.id, teacherId: user.teacherId, completedBy: user.id, dutyDate: today, shift: schedule.shift }).onConflictDoNothing().returning({ id: dutyCompletions.id });
   if (!inserted.length) return;
-  await db.insert(auditLogs).values({ userId: user.id, action: "COMPLETE", entity: "DUTY", entityId: String(schedule.id), description: `${user.name} menandai tugas piket ${today} shift ${schedule.shift} selesai.` });
+  await db.insert(auditLogs).values({ userId: user.id, action: "COMPLETE", entity: "DUTY", entityId: String(schedule.id), description: `${user.name} menandai tugas piket ${today} selesai.` });
   revalidatePath("/dashboard");
   revalidatePath("/monitoring");
 }
@@ -382,7 +382,6 @@ export async function updateTeacherAction(_: ActionState, formData: FormData): P
 const scheduleSchema = z.object({
   teacherId: z.coerce.number().int().positive(),
   weekday: z.coerce.number().int().min(1).max(6),
-  shift: z.enum(["PAGI", "SIANG"]),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
 });
@@ -395,16 +394,16 @@ export async function createScheduleAction(_: ActionState, formData: FormData): 
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const teacher = await db.select({ duty: teachers.isDutyTeacher, name: teachers.name }).from(teachers).where(eq(teachers.id, parsed.data.teacherId)).limit(1);
   if (!teacher[0]?.duty) return { error: "Guru harus ditetapkan sebagai guru piket terlebih dahulu." };
-  const duplicate = await db.select({ id: dutySchedules.id }).from(dutySchedules).where(and(eq(dutySchedules.teacherId, parsed.data.teacherId), eq(dutySchedules.weekday, parsed.data.weekday), eq(dutySchedules.shift, parsed.data.shift), eq(dutySchedules.isActive, true))).limit(1);
-  if (duplicate[0]) return { error: "Jadwal guru pada hari dan shift tersebut sudah ada." };
+  const duplicate = await db.select({ id: dutySchedules.id }).from(dutySchedules).where(and(eq(dutySchedules.weekday, parsed.data.weekday), eq(dutySchedules.isActive, true))).limit(1);
+  if (duplicate[0]) return { error: "Hari tersebut sudah memiliki guru piket." };
   try {
     await db.transaction(async (tx) => {
       await tx.insert(auditLogs).values({ requestId: requestId.data, userId: user.id, action: "CREATE", entity: "SCHEDULE", description: `Menambahkan jadwal piket untuk ${teacher[0].name}.` });
-      await tx.insert(dutySchedules).values({ ...parsed.data, startTime: `${parsed.data.startTime}:00`, endTime: `${parsed.data.endTime}:00` });
+      await tx.insert(dutySchedules).values({ ...parsed.data, shift: "PAGI", startTime: `${parsed.data.startTime}:00`, endTime: `${parsed.data.endTime}:00` });
     });
   } catch (error) {
     if (isUniqueViolation(error, "audit_logs_request_id_unique")) return { success: "Permintaan jadwal ini sudah diproses." };
-    if (isUniqueViolation(error, "duty_schedule_active_unique")) return { error: "Jadwal guru pada hari dan shift tersebut sudah ada." };
+    if (isUniqueViolation(error, "duty_schedule_active_day_unique")) return { error: "Hari tersebut sudah memiliki guru piket." };
     return { error: internalErrorMessage(reportServerError("create-schedule", error)) };
   }
   revalidatePath("/schedule");
@@ -431,8 +430,8 @@ export async function moveScheduleAction(scheduleId: number, weekday: number): P
   if (!schedule) return { error: "Jadwal tidak ditemukan atau sudah tidak aktif." };
   if (schedule.weekday === parsedWeekday.data) return { success: "Jadwal sudah berada di hari tersebut." };
 
-  const duplicate = await db.select({ id: dutySchedules.id }).from(dutySchedules).where(and(eq(dutySchedules.teacherId, schedule.teacherId), eq(dutySchedules.weekday, parsedWeekday.data), eq(dutySchedules.shift, schedule.shift), eq(dutySchedules.isActive, true))).limit(1);
-  if (duplicate[0]) return { error: "Guru tersebut sudah memiliki jadwal pada hari dan shift tujuan." };
+  const duplicate = await db.select({ id: dutySchedules.id }).from(dutySchedules).where(and(eq(dutySchedules.weekday, parsedWeekday.data), eq(dutySchedules.isActive, true))).limit(1);
+  if (duplicate[0]) return { error: "Hari tujuan sudah memiliki guru piket." };
 
   try {
     await db.transaction(async (tx) => {
@@ -440,7 +439,7 @@ export async function moveScheduleAction(scheduleId: number, weekday: number): P
       await tx.insert(auditLogs).values({ userId: user.id, action: "UPDATE", entity: "SCHEDULE", entityId: String(schedule.id), description: `Memindahkan jadwal piket ${schedule.teacher} dari ${weekdayNames[schedule.weekday]} ke ${weekdayNames[parsedWeekday.data]}.` });
     });
   } catch (error) {
-    if (isUniqueViolation(error, "duty_schedule_active_unique")) return { error: "Guru tersebut sudah memiliki jadwal pada hari dan shift tujuan." };
+    if (isUniqueViolation(error, "duty_schedule_active_day_unique")) return { error: "Hari tujuan sudah memiliki guru piket." };
     return { error: internalErrorMessage(reportServerError("move-schedule", error)) };
   }
   revalidatePath("/schedule");

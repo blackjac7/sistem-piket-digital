@@ -85,7 +85,7 @@ Target `migration` sengaja membawa `drizzle-kit` dan folder `drizzle/`, sedangka
 - Pemantauan keterlaksanaan tugas piket, grafik tren, dan ekspor laporan Excel untuk rapat.
 - Master 22 guru dan penetapan guru piket.
 - Master 16 kelas dan pengaturan wali kelas.
-- Jadwal piket mingguan per shift.
+- Jadwal piket mingguan dengan tepat satu guru piket per hari.
 - Absensi siswa dan guru dengan status Sakit, Izin, Alpa, atau Dinas.
 - Mode absensi terpisah untuk siswa dan guru, seluruh pemilihan nama/status dilakukan dengan klik.
 - Konfirmasi tindak lanjut, dashboard harian, rekap CSV, dan audit aktivitas.
@@ -119,6 +119,22 @@ npm run pwa:icons
 PWA harus disajikan melalui HTTPS di produksi. Setelah deployment, hapus instalasi lama lalu pasang kembali hanya jika ikon atau identitas aplikasi tidak diperbarui otomatis oleh sistem operasi.
 
 ## Impor data Excel
+
+### Migrasi Google Forms
+
+Respons form guru dapat diekspor dari Google Forms sebagai CSV, lalu dimasukkan tanpa duplikasi:
+
+```powershell
+npm run import:gform -- "C:\path\respons-guru.csv"
+```
+
+Ekspor respons setiap form kelas dengan cara yang sama jika ingin memindahkan absensi siswa lama. Jalankan sekali untuk setiap kelas:
+
+```powershell
+npm run import:gform:kelas -- "C:\path\7A.csv" 7A
+```
+
+Skrip mengenali kolom `NAMA GURU`, `TANGGAL`, dan kolom status `KETERANGAN SAKIT`, `KETERANGAN IJIN/IZIN`, atau `KETERANGAN ALPA`. Data yang sudah masuk tidak dibuat ulang. Nama siswa yang muncul di respons tetapi belum ada di roster dibuat dengan nomor internal `GF-...`; lengkapi NIS melalui menu Data siswa setelah migrasi.
 
 Gunakan template dari aplikasi agar nama kolom, format, dan pilihan data tetap konsisten.
 

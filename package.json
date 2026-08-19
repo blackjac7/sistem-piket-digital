@@ -11,6 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:reset": "tsx scripts/reset-database.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "import:gform": "tsx scripts/import-google-form-csv.ts",
+    "import:gform:kelas": "tsx scripts/import-google-form-class-csv.ts",
     "db:studio": "drizzle-kit studio",
     "account:recover": "tsx scripts/recover-admin.ts",
     "pwa:icons": "node scripts/generate-pwa-icons.mjs"

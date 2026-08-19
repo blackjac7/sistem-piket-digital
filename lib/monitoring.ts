@@ -59,8 +59,8 @@ export async function getMonitoringData(period = 30) {
       id: dutySchedules.id,
       teacherId: dutySchedules.teacherId,
       teacherName: teachers.name,
-      weekday: dutySchedules.weekday,
       shift: dutySchedules.shift,
+      weekday: dutySchedules.weekday,
       startTime: dutySchedules.startTime,
       endTime: dutySchedules.endTime,
       createdAt: dutySchedules.createdAt,
@@ -122,15 +122,14 @@ export async function getMonitoringData(period = 30) {
   const overdue = occurrences.filter((item) => item.status === "BELUM").length;
   const inProgress = occurrences.filter((item) => item.status === "BERJALAN").length;
   const totalActivity = attendance.length;
-  const teacherKeys = new Map(schedules.map((schedule) => [`${schedule.teacherId}:${schedule.shift}`, schedule]));
+  const teacherKeys = new Map(schedules.map((schedule) => [String(schedule.teacherId), schedule]));
   const teacherSummary = [...teacherKeys.values()].map((schedule) => {
-    const items = occurrences.filter((item) => item.teacherId === schedule.teacherId && item.shift === schedule.shift);
+    const items = occurrences.filter((item) => item.teacherId === schedule.teacherId);
     const teacherCompleted = items.filter((item) => item.status === "SELESAI").length;
     const teacherOverdue = items.filter((item) => item.status === "BELUM").length;
     return {
       teacherId: schedule.teacherId,
       teacherName: schedule.teacherName,
-      shift: schedule.shift,
       scheduled: items.length,
       completed: teacherCompleted,
       overdue: teacherOverdue,
@@ -176,19 +175,6 @@ export async function getMonitoringData(period = 30) {
     };
   });
 
-  const shiftSummary = (["PAGI", "SIANG"] as const).map((shift) => {
-    const items = occurrences.filter((item) => item.shift === shift);
-    const shiftCompleted = items.filter((item) => item.status === "SELESAI").length;
-    return {
-      shift,
-      scheduled: items.length,
-      completed: shiftCompleted,
-      overdue: items.filter((item) => item.status === "BELUM").length,
-      inProgress: items.filter((item) => item.status === "BERJALAN").length,
-      completionRate: items.length ? Math.round(shiftCompleted / items.length * 100) : 0,
-      attendanceCount: items.reduce((total, item) => total + item.attendanceCount, 0),
-    };
-  });
 
   return {
     period,
@@ -196,7 +182,6 @@ export async function getMonitoringData(period = 30) {
     end,
     occurrences: occurrences.sort((a, b) => b.date.localeCompare(a.date) || a.startTime.localeCompare(b.startTime)),
     teacherSummary,
-    shiftSummary,
     classSummary,
     trend,
     attendance,
