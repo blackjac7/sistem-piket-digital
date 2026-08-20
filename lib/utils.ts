@@ -33,17 +33,6 @@ export function jakartaDate() {
   }).format(new Date());
 }
 
-export function jakartaDateOffset(days: number) {
-  const date = new Date(`${jakartaDate()}T12:00:00+07:00`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    timeZone: "Asia/Jakarta",
-  }).format(date);
-}
-
 export const weekdayNames: Record<number, string> = {
   1: "Senin",
   2: "Selasa",
