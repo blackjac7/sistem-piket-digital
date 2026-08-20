@@ -12,9 +12,11 @@ export const roleLabels: Record<string, string> = {
   GURU: "Guru",
 };
 
-export const attendanceStatuses = [
-  { value: "SAKIT", label: "Sakit", tone: "amber" },
-  { value: "IZIN", label: "Izin", tone: "blue" },
-  { value: "ALPA", label: "Alpa", tone: "red" },
-  { value: "DINAS", label: "Dinas", tone: "green" },
-] as const;
+export const attendanceStatusMeta = {
+  SAKIT: { label: "Sakit", tone: "amber", pillTone: "warning", color: "#d89024" },
+  IZIN: { label: "Izin", tone: "blue", pillTone: "info", color: "#347fb7" },
+  ALPA: { label: "Alpa", tone: "red", pillTone: "danger", color: "#c34c55" },
+  DINAS: { label: "Dinas", tone: "green", pillTone: "success", color: "#2c966d" },
+} as const;
+
+export const attendanceStatuses = (Object.entries(attendanceStatusMeta) as Array<[keyof typeof attendanceStatusMeta, (typeof attendanceStatusMeta)[keyof typeof attendanceStatusMeta]]>).map(([value, meta]) => ({ value, ...meta }));
