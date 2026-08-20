@@ -275,6 +275,10 @@ td strong { color: var(--ink); }
 .person-cell { display: flex; align-items: center; gap: 9px; min-width: 150px; }
 .person-cell small { display: block; margin-top: 3px; color: var(--muted); font: 9px var(--font-mono); }
 .table-actions { display: flex; align-items: center; gap: 6px; }
+.attendance-record-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.attendance-record-actions form { display: contents; }
+.attendance-record-actions .button { min-height: 34px; padding: 6px 9px; }
+.attendance-action-message { width: 100%; margin-top: 7px; }
 .edit-layout { display: grid; grid-template-columns: minmax(420px, .8fr) minmax(280px, .45fr); gap: 17px; align-items: start; }
 .teacher-summary { padding: 28px; text-align: center; }
 .avatar.large { width: 64px; height: 64px; margin: 0 auto; font-size: 16px; }
@@ -896,6 +900,8 @@ tbody tr { transition: background .12s; }
   .mobile-record-note { margin: 11px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
   .mobile-record-actions { margin-top: 12px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
   .mobile-record-actions form { display: contents; }
+  .mobile-record-actions .attendance-record-actions { flex: 1 1 100%; }
+  .mobile-record-actions .attendance-record-actions .button { flex: 1 1 140px; }
   .mobile-list-search { position: sticky; z-index: 8; top: calc(66px + env(safe-area-inset-top)); display: block; padding: 12px 14px; border-bottom: 1px solid #dfe5ed; background: rgba(255,255,255,.97); backdrop-filter: blur(12px); }
   .mobile-list-search input { min-height: 48px; font-size: 16px; }
   .mobile-list-search.input-icon svg { left: 24px; }

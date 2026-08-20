@@ -154,6 +154,12 @@ const attendanceSchema = z.object({
   isConfirmed: z.string().optional(),
 });
 
+const attendanceRecordIdSchema = z.coerce.number().int().positive();
+const attendanceStatusUpdateSchema = z.object({
+  id: attendanceRecordIdSchema,
+  status: z.enum(["SAKIT", "IZIN", "ALPA", "DINAS"]),
+});
+
 export async function createAttendanceAction(_: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireUser();
   if (!(["ADMIN", "GURU_PIKET"] as const).includes(user.role as "ADMIN" | "GURU_PIKET")) return { error: "Akses ditolak." };
@@ -206,6 +212,99 @@ export async function createAttendanceAction(_: ActionState, formData: FormData)
   revalidatePath("/attendance");
   revalidatePath("/reports");
   return { success: `${people.length} ${parsed.data.type === "SISWA" ? "siswa" : "guru"} berhasil dicatat sebagai ${parsed.data.status}.` };
+}
+
+function revalidateAttendance() {
+  revalidatePath("/dashboard");
+  revalidatePath("/attendance");
+  revalidatePath("/monitoring");
+  revalidatePath("/reports");
+}
+
+export async function confirmAttendanceAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireRoles(["ADMIN", "GURU_PIKET"]);
+  const requestId = mutationRequestId(formData);
+  const id = attendanceRecordIdSchema.safeParse(formData.get("id"));
+  if (!requestId.success) return { error: "Formulir telah kedaluwarsa. Muat ulang halaman lalu coba kembali." };
+  if (!id.success) return { error: "Catatan absensi tidak valid." };
+
+  try {
+    const changed = await db.transaction(async (tx) => {
+      const updated = await tx.update(attendanceRecords)
+        .set({ isConfirmed: true, updatedAt: new Date() })
+        .where(and(eq(attendanceRecords.id, id.data), eq(attendanceRecords.isConfirmed, false)))
+        .returning({ id: attendanceRecords.id, personName: attendanceRecords.personName });
+      if (!updated.length) {
+        const [existing] = await tx.select({ isConfirmed: attendanceRecords.isConfirmed }).from(attendanceRecords).where(eq(attendanceRecords.id, id.data)).limit(1);
+        return existing?.isConfirmed === true;
+      }
+
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: user.id,
+        action: "CONFIRM",
+        entity: "ATTENDANCE",
+        entityId: String(id.data),
+        description: `${user.name} mengonfirmasi catatan absensi ${updated[0].personName} (#${id.data}).`,
+      });
+      return true;
+    });
+
+    if (!changed) return { error: "Catatan tidak ditemukan atau sudah dikonfirmasi sebelumnya." };
+  } catch (error) {
+    if (isUniqueViolation(error, "audit_logs_request_id_unique")) return { success: "Catatan absensi ini sudah dikonfirmasi." };
+    return { error: internalErrorMessage(reportServerError("confirm-attendance", error)) };
+  }
+
+  revalidateAttendance();
+  return { success: "Catatan absensi berhasil dikonfirmasi." };
+}
+
+export async function updateAttendanceStatusAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireRoles(["ADMIN", "GURU_PIKET"]);
+  const requestId = mutationRequestId(formData);
+  const parsed = attendanceStatusUpdateSchema.safeParse({ id: formData.get("id"), status: formData.get("status") });
+  if (!requestId.success) return { error: "Formulir telah kedaluwarsa. Muat ulang halaman lalu coba kembali." };
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message || "Status absensi tidak valid." };
+
+  try {
+    const changed = await db.transaction(async (tx) => {
+      const [record] = await tx.select({
+        id: attendanceRecords.id,
+        personName: attendanceRecords.personName,
+        status: attendanceRecords.status,
+        isConfirmed: attendanceRecords.isConfirmed,
+      }).from(attendanceRecords).where(eq(attendanceRecords.id, parsed.data.id)).limit(1);
+      if (!record || record.isConfirmed) return false;
+      if (record.status !== parsed.data.status) {
+        const updated = await tx.update(attendanceRecords)
+          .set({ status: parsed.data.status, updatedAt: new Date() })
+          .where(and(eq(attendanceRecords.id, parsed.data.id), eq(attendanceRecords.isConfirmed, false)))
+          .returning({ id: attendanceRecords.id });
+        if (!updated.length) return false;
+      }
+
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: user.id,
+        action: "UPDATE",
+        entity: "ATTENDANCE",
+        entityId: String(parsed.data.id),
+        description: record.status === parsed.data.status
+          ? `${user.name} memeriksa ulang status absensi ${record.personName} (#${parsed.data.id}); status tetap ${record.status}.`
+          : `${user.name} mengubah status absensi ${record.personName} (#${parsed.data.id}) dari ${record.status} menjadi ${parsed.data.status}.`,
+      });
+      return true;
+    });
+
+    if (!changed) return { error: "Catatan tidak ditemukan atau sudah dikonfirmasi. Status tidak dapat diubah lagi." };
+  } catch (error) {
+    if (isUniqueViolation(error, "audit_logs_request_id_unique")) return { success: "Perubahan status ini sudah diproses." };
+    return { error: internalErrorMessage(reportServerError("update-attendance-status", error)) };
+  }
+
+  revalidateAttendance();
+  return { success: "Status absensi berhasil diperbarui." };
 }
 
 const studentRosterSchema = z.object({

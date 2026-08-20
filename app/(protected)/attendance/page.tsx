@@ -1,5 +1,6 @@
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { deleteAttendanceAction } from "@/app/actions";
+import { AttendanceRecordActions } from "@/components/attendance-record-actions";
 import { ClickAttendance } from "@/components/click-attendance";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { PageHeader } from "@/components/page-header";
@@ -25,15 +26,15 @@ export default async function AttendancePage() {
         <ClickAttendance classes={classes} students={studentList.map((item) => ({ ...item, classId: item.classId! }))} teachers={teacherList} />
       </article>
       <article className="panel data-panel">
-        <div className="panel-header"><div><h2>Riwayat absensi</h2><p>100 catatan terbaru</p></div></div>
+        <div className="panel-header"><div><h2>Riwayat absensi</h2><p>Catatan “Belum” dapat dikoreksi atau dikonfirmasi</p></div></div>
         <div className="mobile-data-view"><div className="mobile-record-list">{records.map((item) => <article className="mobile-record" key={item.id}>
           <div className="mobile-record-heading"><span className="avatar">{item.name.split(" ").map((word) => word[0]).join("").slice(0, 2)}</span><span><strong>{item.name}</strong><small>{item.type === "SISWA" ? `Siswa · ${item.className || "Tanpa kelas"}` : "Guru"}</small></span><StatusPill tone={item.status === "ALPA" ? "danger" : item.status === "SAKIT" ? "warning" : "info"}>{item.status}</StatusPill></div>
           <dl className="mobile-record-details"><div><dt>Tanggal</dt><dd>{formatDateId(item.date)}</dd></div><div><dt>Konfirmasi</dt><dd>{item.confirmed ? "Sudah" : "Belum"}</dd></div></dl>
           <p className="mobile-record-note">{item.notes || "Tanpa keterangan"} · Dicatat {item.recorder} pada {formatDateTimeId(item.createdAt)}</p>
-          <div className="mobile-record-actions"><form action={deleteAttendanceAction}><input type="hidden" name="id" value={item.id} /><ConfirmSubmitButton message={`Hapus catatan ${item.name}? Tindakan ini tidak dapat dibatalkan.`} /></form></div>
+          <div className="mobile-record-actions"><AttendanceRecordActions id={item.id} name={item.name} type={item.type} status={item.status} confirmed={item.confirmed} /><form action={deleteAttendanceAction}><input type="hidden" name="id" value={item.id} /><ConfirmSubmitButton message={`Hapus catatan ${item.name}? Tindakan ini tidak dapat dibatalkan.`} /></form></div>
         </article>)}{!records.length && <p className="empty-state">Belum ada data absensi.</p>}</div></div>
         <div className="table-scroll desktop-data-view"><table><thead><tr><th>Nama</th><th>Kelas</th><th>Status</th><th>Tanggal</th><th>Konfirmasi</th><th>Pencatat</th><th /></tr></thead><tbody>
-          {records.map((item) => <tr key={item.id}><td><strong>{item.name}</strong><small className="table-subtitle">{item.type === "SISWA" ? "Siswa" : "Guru"} · {item.notes || "Tanpa keterangan"}</small></td><td>{item.className || "Guru"}</td><td><StatusPill tone={item.status === "ALPA" ? "danger" : item.status === "SAKIT" ? "warning" : "info"}>{item.status}</StatusPill></td><td>{formatDateId(item.date)}<small className="table-subtitle mono">{formatDateTimeId(item.createdAt)}</small></td><td>{item.confirmed ? <StatusPill tone="success">Sudah</StatusPill> : <StatusPill tone="warning">Belum</StatusPill>}</td><td>{item.recorder}</td><td><form action={deleteAttendanceAction}><input type="hidden" name="id" value={item.id} /><ConfirmSubmitButton message={`Hapus catatan ${item.name}? Tindakan ini tidak dapat dibatalkan.`} /></form></td></tr>)}
+          {records.map((item) => <tr key={item.id}><td><strong>{item.name}</strong><small className="table-subtitle">{item.type === "SISWA" ? "Siswa" : "Guru"} · {item.notes || "Tanpa keterangan"}</small></td><td>{item.className || "Guru"}</td><td><StatusPill tone={item.status === "ALPA" ? "danger" : item.status === "SAKIT" ? "warning" : "info"}>{item.status}</StatusPill></td><td>{formatDateId(item.date)}<small className="table-subtitle mono">{formatDateTimeId(item.createdAt)}</small></td><td>{item.confirmed ? <StatusPill tone="success">Sudah</StatusPill> : <StatusPill tone="warning">Belum</StatusPill>}</td><td>{item.recorder}</td><td><div className="table-actions"><AttendanceRecordActions id={item.id} name={item.name} type={item.type} status={item.status} confirmed={item.confirmed} /><form action={deleteAttendanceAction}><input type="hidden" name="id" value={item.id} /><ConfirmSubmitButton message={`Hapus catatan ${item.name}? Tindakan ini tidak dapat dibatalkan.`} /></form></div></td></tr>)}
           {!records.length && <tr><td colSpan={7} className="empty-state">Belum ada data absensi.</td></tr>}
         </tbody></table></div>
       </article>
