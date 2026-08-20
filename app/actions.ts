@@ -1,6 +1,6 @@
 "use server";
 
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -148,8 +148,6 @@ export async function completeDutyAction(formData: FormData) {
 
 const attendanceSchema = z.object({
   type: z.enum(["SISWA", "GURU"]),
-  studentId: z.coerce.number().int().positive().optional().or(z.literal("")),
-  teacherId: z.coerce.number().int().positive().optional().or(z.literal("")),
   status: z.enum(["SAKIT", "IZIN", "ALPA", "DINAS"]),
   attendanceDate: z.string().date(),
   notes: z.string().trim().max(1000).optional(),
@@ -161,44 +159,44 @@ export async function createAttendanceAction(_: ActionState, formData: FormData)
   if (!(["ADMIN", "GURU_PIKET"] as const).includes(user.role as "ADMIN" | "GURU_PIKET")) return { error: "Akses ditolak." };
   const requestId = mutationRequestId(formData);
   if (!requestId.success) return { error: "Formulir telah kedaluwarsa. Muat ulang halaman lalu coba kembali." };
-  const parsed = attendanceSchema.safeParse(Object.fromEntries(formData));
+  const parsed = attendanceSchema.safeParse({
+    type: formData.get("type"),
+    status: formData.get("status"),
+    attendanceDate: formData.get("attendanceDate"),
+    notes: formData.get("notes") || undefined,
+    isConfirmed: formData.get("isConfirmed") || undefined,
+  });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  if (parsed.data.type === "SISWA" && !parsed.data.studentId) return { error: "Pilih siswa terlebih dahulu." };
-  if (parsed.data.type === "GURU" && !parsed.data.teacherId) return { error: "Pilih guru terlebih dahulu." };
-
-  let personName = "";
-  let classId: number | null = null;
-  let studentId: number | null = null;
-  let teacherId: number | null = null;
+  const parsedPersonIds = z.array(z.coerce.number().int().positive()).min(1).max(100).safeParse(formData.getAll("personId"));
+  if (!parsedPersonIds.success) return { error: `Pilih 1-100 ${parsed.data.type === "SISWA" ? "siswa" : "guru"} yang valid.` };
+  const personIds = [...new Set(parsedPersonIds.data)];
+  type AttendancePerson = { id: number; name: string; classId: number | null; studentId: number | null; teacherId: number | null };
+  let people: AttendancePerson[];
   if (parsed.data.type === "SISWA") {
-    const student = await db.select({ id: students.id, name: students.name, classId: students.classId }).from(students).where(and(eq(students.id, Number(parsed.data.studentId)), eq(students.isActive, true))).limit(1);
-    if (!student[0]) return { error: "Data siswa tidak ditemukan." };
-    personName = student[0].name;
-    classId = student[0].classId;
-    studentId = student[0].id;
+    const rows = await db.select({ id: students.id, name: students.name, classId: students.classId }).from(students).where(and(eq(students.isActive, true), inArray(students.id, personIds)));
+    people = rows.map((row) => ({ id: row.id, name: row.name, classId: row.classId, studentId: row.id, teacherId: null }));
   } else {
-    const teacher = await db.select({ id: teachers.id, name: teachers.name }).from(teachers).where(and(eq(teachers.id, Number(parsed.data.teacherId)), eq(teachers.isActive, true))).limit(1);
-    if (!teacher[0]) return { error: "Data guru tidak ditemukan." };
-    personName = teacher[0].name;
-    teacherId = teacher[0].id;
+    const rows = await db.select({ id: teachers.id, name: teachers.name }).from(teachers).where(and(eq(teachers.isActive, true), inArray(teachers.id, personIds)));
+    people = rows.map((row) => ({ id: row.id, name: row.name, classId: null, studentId: null, teacherId: row.id }));
   }
+  if (people.length !== personIds.length) return { error: "Sebagian data yang dipilih tidak ditemukan atau sudah tidak aktif. Muat ulang halaman lalu pilih kembali." };
 
   try {
     await db.transaction(async (tx) => {
-      const [audit] = await tx.insert(auditLogs).values({ requestId: requestId.data, userId: user.id, action: "CREATE", entity: "ATTENDANCE", description: `Mencatat ${personName} dengan status ${parsed.data.status}.` }).returning({ id: auditLogs.id });
-      const [record] = await tx.insert(attendanceRecords).values({
+      const [audit] = await tx.insert(auditLogs).values({ requestId: requestId.data, userId: user.id, action: "CREATE", entity: "ATTENDANCE", description: `Mencatat ${people.length} ${parsed.data.type === "SISWA" ? "siswa" : "guru"} dengan status ${parsed.data.status}.` }).returning({ id: auditLogs.id });
+      const records = await tx.insert(attendanceRecords).values(people.map((person) => ({
         type: parsed.data.type,
-        personName,
-        classId,
-        studentId,
-        teacherId,
+        personName: person.name,
+        classId: person.classId,
+        studentId: person.studentId,
+        teacherId: person.teacherId,
         status: parsed.data.status,
         attendanceDate: parsed.data.attendanceDate,
         notes: parsed.data.notes || null,
         isConfirmed: parsed.data.isConfirmed === "on",
         recordedBy: user.id,
-      }).returning({ id: attendanceRecords.id });
-      await tx.update(auditLogs).set({ entityId: String(record.id) }).where(eq(auditLogs.id, audit.id));
+      }))).returning({ id: attendanceRecords.id });
+      await tx.update(auditLogs).set({ entityId: String(records[0].id) }).where(eq(auditLogs.id, audit.id));
     });
   } catch (error) {
     if (isUniqueViolation(error, "audit_logs_request_id_unique")) return { success: "Catatan ini sudah tersimpan. Tidak ada data ganda yang dibuat." };
@@ -207,7 +205,7 @@ export async function createAttendanceAction(_: ActionState, formData: FormData)
   revalidatePath("/dashboard");
   revalidatePath("/attendance");
   revalidatePath("/reports");
-  return { success: "Catatan ketidakhadiran berhasil disimpan." };
+  return { success: `${people.length} ${parsed.data.type === "SISWA" ? "siswa" : "guru"} berhasil dicatat sebagai ${parsed.data.status}.` };
 }
 
 const studentRosterSchema = z.object({

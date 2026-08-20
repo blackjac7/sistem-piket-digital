@@ -813,6 +813,11 @@ tbody tr { transition: background .12s; }
 .attendance-selection span:nth-child(2) { min-width: 0; }
 .attendance-selection strong, .attendance-selection small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .attendance-selection strong { font-size: 12px; }.attendance-selection small { margin-bottom: 3px; color: var(--muted); font-size: 10px; }
+.attendance-selection-multiple { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+.selection-summary { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.selection-summary .avatar svg { width: 17px; height: 17px; }
+.selection-names { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 5px; }
+.selection-names span { max-width: 100%; padding: 4px 7px; border-radius: 4px; color: #315766; background: #dff0f5; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .password-toggle { right: 2px; width: 44px; height: 44px; }
 .dialog-header { grid-template-columns: 38px minmax(0, 1fr) 44px; }
 .dialog-close { width: 44px; height: 44px; margin-top: -7px; }
@@ -931,6 +936,7 @@ tbody tr { transition: background .12s; }
   .stat-card div > span { min-height: 0; }
   .person-picker { max-height: 360px; }
   .attendance-selection { grid-template-columns: 34px minmax(0,1fr); }
+  .attendance-selection-multiple { grid-template-columns: minmax(0, 1fr); }
   .attendance-selection .button { grid-column: 1 / -1; width: 100%; }
   .report-stats article, .account-summary article { min-height: 98px; }
   .login-note { font-size: 11px; }
