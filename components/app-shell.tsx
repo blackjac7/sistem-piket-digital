@@ -23,7 +23,7 @@ export function AppShell({ user, children }: { user: { name: string; username: s
         <div className="mobile-app-user"><span className="avatar">{user.name.split(" ").map((word) => word[0]).join("").slice(0, 2)}</span><span><strong>{user.name}</strong><small>{roleLabels[user.role] || user.role.replaceAll("_", " ")}</small></span><form action={logoutAction}><SubmitButton className="icon-button" title="Keluar" ariaLabel="Keluar" pendingLabel=""><LogOut /></SubmitButton></form></div>
       </header>
       <main className="main-area" id="main-content" tabIndex={-1}>
-        <header className="topbar"><div><span className="eyebrow"><ShieldCheck /> Sistem internal sekolah</span></div><div className="connection"><span /> PostgreSQL tersambung</div></header>
+        <header className="topbar"><div><span className="eyebrow"><ShieldCheck aria-hidden="true" /> Sistem internal sekolah</span></div><div className="connection" role="status" aria-label="Status sistem"><span aria-hidden="true" /> Sistem aktif</div></header>
         <div className="page-content">{children}</div>
       </main>
       <MobileNav role={user.role} />
