@@ -47,10 +47,12 @@ function enumerateDates(start: string, end: string) {
 }
 
 export function normalizeMonitoringPeriod(value?: string) {
-  return value === "7" || value === "90" ? Number(value) : 30;
+  return value === "7" || value === "30" || value === "90" ? Number(value) : 90;
 }
 
-export async function getMonitoringData(period = 30) {
+export type MonitoringFilters = { className?: string; status?: "SAKIT" | "IZIN" | "ALPA" | "DINAS"; type?: "SISWA" | "GURU" };
+
+export async function getMonitoringData(period = 30, filters: MonitoringFilters = {}) {
   const end = jakartaDate();
   const start = shiftDate(end, -(period - 1));
   const currentTime = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Asia/Jakarta" }).format(new Date());
@@ -67,6 +69,7 @@ export async function getMonitoringData(period = 30) {
       inactiveAt: dutySchedules.inactiveAt,
     }).from(dutySchedules).innerJoin(teachers, eq(dutySchedules.teacherId, teachers.id)),
     db.select({
+      scheduleId: dutyCompletions.scheduleId,
       teacherId: dutyCompletions.teacherId,
       dutyDate: dutyCompletions.dutyDate,
       shift: dutyCompletions.shift,
@@ -82,7 +85,7 @@ export async function getMonitoringData(period = 30) {
       confirmed: attendanceRecords.isConfirmed,
       recorder: users.name,
       recorderTeacherId: users.teacherId,
-    }).from(attendanceRecords).leftJoin(schoolClasses, eq(attendanceRecords.classId, schoolClasses.id)).innerJoin(users, eq(attendanceRecords.recordedBy, users.id)).where(and(gte(attendanceRecords.attendanceDate, start), lte(attendanceRecords.attendanceDate, end))),
+    }).from(attendanceRecords).leftJoin(schoolClasses, eq(attendanceRecords.classId, schoolClasses.id)).innerJoin(users, eq(attendanceRecords.recordedBy, users.id)).where(and(gte(attendanceRecords.attendanceDate, start), lte(attendanceRecords.attendanceDate, end), filters.className ? eq(schoolClasses.name, filters.className) : undefined, filters.status ? eq(attendanceRecords.status, filters.status) : undefined, filters.type ? eq(attendanceRecords.type, filters.type) : undefined)),
   ]);
 
   const completionMap = new Map(completions.map((item) => [`${item.teacherId}:${item.dutyDate}:${item.shift}`, item.completedAt]));
@@ -118,6 +121,29 @@ export async function getMonitoringData(period = 30) {
     }
   }
 
+  const occurrenceKeys = new Set(occurrences.map((item) => `${item.teacherId}:${item.date}:${item.shift}`));
+  for (const completion of completions) {
+    const key = `${completion.teacherId}:${completion.dutyDate}:${completion.shift}`;
+    if (occurrenceKeys.has(key)) continue;
+    const schedule = schedules.find((item) => item.id === completion.scheduleId)
+      || schedules.find((item) => item.teacherId === completion.teacherId && item.shift === completion.shift);
+    if (!schedule) continue;
+    const weekday = new Date(`${completion.dutyDate}T12:00:00+07:00`).getUTCDay();
+    occurrences.push({
+      date: completion.dutyDate,
+      weekday: weekdayNames[weekday] || "Hari sekolah",
+      teacherId: completion.teacherId,
+      teacherName: schedule.teacherName,
+      shift: completion.shift,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      status: "SELESAI",
+      completedAt: completion.completedAt,
+      attendanceCount: activityMap.get(`${completion.teacherId}:${completion.dutyDate}`) || 0,
+    });
+    occurrenceKeys.add(key);
+  }
+
   const completed = occurrences.filter((item) => item.status === "SELESAI").length;
   const overdue = occurrences.filter((item) => item.status === "BELUM").length;
   const inProgress = occurrences.filter((item) => item.status === "BERJALAN").length;
@@ -140,8 +166,12 @@ export async function getMonitoringData(period = 30) {
   }).sort((a, b) => a.completionRate - b.completionRate || b.overdue - a.overdue || a.teacherName.localeCompare(b.teacherName));
 
   const attendanceByDate = new Map<string, ReturnType<typeof emptyStatusCounts> & { total: number }>();
+  const studentAttendanceByDate = new Map<string, ReturnType<typeof emptyStatusCounts> & { total: number }>();
+  const teacherAttendanceByDate = new Map<string, ReturnType<typeof emptyStatusCounts> & { total: number }>();
   const classMap = new Map<string, ReturnType<typeof emptyStatusCounts> & { total: number; pending: number }>();
   const statusCounts = emptyStatusCounts();
+  const studentStatusCounts = emptyStatusCounts();
+  const teacherStatusCounts = emptyStatusCounts();
   let confirmedAttendance = 0;
   for (const item of attendance) {
     statusCounts[item.status] += 1;
@@ -151,6 +181,14 @@ export async function getMonitoringData(period = 30) {
     daily[item.status] += 1;
     daily.total += 1;
     attendanceByDate.set(item.date, daily);
+
+    const scopedByDate = item.type === "SISWA" ? studentAttendanceByDate : teacherAttendanceByDate;
+    const scopedDaily = scopedByDate.get(item.date) || { ...emptyStatusCounts(), total: 0 };
+    scopedDaily[item.status] += 1;
+    scopedDaily.total += 1;
+    scopedByDate.set(item.date, scopedDaily);
+    if (item.type === "SISWA") studentStatusCounts[item.status] += 1;
+    else teacherStatusCounts[item.status] += 1;
 
     if (item.type === "SISWA") {
       const className = item.className || "Tanpa kelas";
@@ -172,6 +210,10 @@ export async function getMonitoringData(period = 30) {
       completed: items.filter((item) => item.status === "SELESAI").length,
       attendanceCount: dailyAttendance.total,
       attendanceStatuses: dailyAttendance,
+      studentAttendanceCount: (studentAttendanceByDate.get(date) || { ...emptyStatusCounts(), total: 0 }).total,
+      teacherAttendanceCount: (teacherAttendanceByDate.get(date) || { ...emptyStatusCounts(), total: 0 }).total,
+      studentAttendanceStatuses: studentAttendanceByDate.get(date) || { ...emptyStatusCounts(), total: 0 },
+      teacherAttendanceStatuses: teacherAttendanceByDate.get(date) || { ...emptyStatusCounts(), total: 0 },
     };
   });
 
@@ -192,6 +234,8 @@ export async function getMonitoringData(period = 30) {
       confirmed: confirmedAttendance,
       pending: attendance.length - confirmedAttendance,
       statusCounts,
+      studentStatusCounts,
+      teacherStatusCounts,
     },
     summary: {
       scheduled: occurrences.length,
