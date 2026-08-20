@@ -4,7 +4,7 @@ import { useActionState, useMemo, useRef, useState } from "react";
 import { CheckCircle2, GraduationCap, Info, Search, Stethoscope, UserRound, UsersRound, X, XCircle } from "lucide-react";
 import { createAttendanceAction, type ActionState } from "@/app/actions";
 import { attendanceStatuses } from "@/lib/site-config";
-import { cn, jakartaDate } from "@/lib/utils";
+import { cn, jakartaDate, jakartaDateOffset } from "@/lib/utils";
 import { MutationRequestInput } from "./mutation-request-input";
 import { SubmitButton } from "./submit-button";
 
@@ -23,6 +23,7 @@ export function ClickAttendance({ classes, students, teachers }: { classes: Scho
   const [type, setType] = useState<"SISWA" | "GURU">("SISWA");
   const [classId, setClassId] = useState(classes[0]?.id || 0);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [attendanceDate, setAttendanceDate] = useState(jakartaDate());
   const [status, setStatus] = useState<(typeof attendanceStatuses)[number]["value"]>("SAKIT");
   const [showNotes, setShowNotes] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
@@ -72,7 +73,7 @@ export function ClickAttendance({ classes, students, teachers }: { classes: Scho
     <input type="hidden" name="type" value={type} />
     {selectedIds.map((id) => <input key={id} type="hidden" name="personId" value={id} />)}
     <input type="hidden" name="status" value={status} />
-    <input type="hidden" name="attendanceDate" value={jakartaDate()} />
+    <section className="attendance-date-field" aria-labelledby="attendance-date-label"><div><strong id="attendance-date-label">Tanggal pencatatan</strong><small>Hari ini atau maksimal 14 hari sebelumnya</small></div><input type="date" name="attendanceDate" value={attendanceDate} min={jakartaDateOffset(-14)} max={jakartaDate()} onChange={(event) => setAttendanceDate(event.target.value)} required /></section>
 
     <div className="attendance-mode" role="group" aria-label="Jenis absensi">
       <button type="button" aria-pressed={type === "SISWA"} className={cn(type === "SISWA" && "active")} onClick={() => changeType("SISWA")}><GraduationCap aria-hidden="true" /><span><strong>Absensi siswa</strong><small>Pilih satu atau beberapa siswa</small></span></button>

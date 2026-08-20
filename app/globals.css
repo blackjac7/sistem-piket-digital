@@ -242,6 +242,11 @@ td strong { color: var(--ink); }
 .form-panel { position: sticky; top: 82px; }
 .form-panel .form-stack { padding: 19px; }
 .click-attendance-form { padding: 18px; display: grid; gap: 14px; }
+.attendance-date-field { padding: 12px 13px; border: 1px solid #d9e3e6; border-radius: 7px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; background: #f7fbfc; }
+.attendance-date-field strong, .attendance-date-field small { display: block; }
+.attendance-date-field strong { font-size: 12px; }.attendance-date-field small { margin-top: 3px; color: var(--muted); font-size: 9px; }
+.attendance-date-field input { min-height: 40px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; color: var(--ink); background: white; font: 11px var(--font-mono); }
+.attendance-date-field input:focus { border-color: var(--green); outline: none; box-shadow: 0 0 0 3px rgba(23,107,135,.12); }
 .attendance-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .attendance-mode > button { min-height: 74px; padding: 13px; border: 1px solid var(--line); border-radius: 7px; background: #f9faf9; display: flex; align-items: center; gap: 12px; color: var(--muted); text-align: left; cursor: pointer; }
 .attendance-mode > button > svg { width: 25px; height: 25px; }
@@ -935,6 +940,8 @@ tbody tr { transition: background .12s; }
   .stat-card div { grid-column: auto; }
   .stat-card div > span { min-height: 0; }
   .person-picker { max-height: 360px; }
+  .attendance-date-field { grid-template-columns: 1fr; }
+  .attendance-date-field input { width: 100%; }
   .attendance-selection { grid-template-columns: 34px minmax(0,1fr); }
   .attendance-selection-multiple { grid-template-columns: minmax(0, 1fr); }
   .attendance-selection .button { grid-column: 1 / -1; width: 100%; }

@@ -167,6 +167,11 @@ export async function createAttendanceAction(_: ActionState, formData: FormData)
     isConfirmed: formData.get("isConfirmed") || undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const today = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Jakarta" }).format(new Date());
+  const earliestDate = new Date(`${today}T12:00:00+07:00`);
+  earliestDate.setUTCDate(earliestDate.getUTCDate() - 14);
+  const earliestDateValue = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Jakarta" }).format(earliestDate);
+  if (parsed.data.attendanceDate < earliestDateValue || parsed.data.attendanceDate > today) return { error: `Tanggal pencatatan harus antara ${earliestDateValue} dan ${today}.` };
   const parsedPersonIds = z.array(z.coerce.number().int().positive()).min(1).max(100).safeParse(formData.getAll("personId"));
   if (!parsedPersonIds.success) return { error: `Pilih 1-100 ${parsed.data.type === "SISWA" ? "siswa" : "guru"} yang valid.` };
   const personIds = [...new Set(parsedPersonIds.data)];
@@ -183,7 +188,7 @@ export async function createAttendanceAction(_: ActionState, formData: FormData)
 
   try {
     await db.transaction(async (tx) => {
-      const [audit] = await tx.insert(auditLogs).values({ requestId: requestId.data, userId: user.id, action: "CREATE", entity: "ATTENDANCE", description: `Mencatat ${people.length} ${parsed.data.type === "SISWA" ? "siswa" : "guru"} dengan status ${parsed.data.status}.` }).returning({ id: auditLogs.id });
+      const [audit] = await tx.insert(auditLogs).values({ requestId: requestId.data, userId: user.id, action: "CREATE", entity: "ATTENDANCE", description: `Mencatat ${people.length} ${parsed.data.type === "SISWA" ? "siswa" : "guru"} dengan status ${parsed.data.status} untuk tanggal ${parsed.data.attendanceDate}.` }).returning({ id: auditLogs.id });
       const records = await tx.insert(attendanceRecords).values(people.map((person) => ({
         type: parsed.data.type,
         personName: person.name,
