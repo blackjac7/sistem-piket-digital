@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "academic_year_active_unique" ON "academic_years" USING btree ("is_active") WHERE "academic_years"."is_active" = true;--> statement-breakpoint
+CREATE UNIQUE INDEX "users_teacher_unique" ON "users" USING btree ("teacher_id") WHERE "users"."teacher_id" IS NOT NULL;

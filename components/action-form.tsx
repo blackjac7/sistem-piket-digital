@@ -31,6 +31,7 @@ export function ActionForm({
       {children}
       {state.error && <p className="form-message error" role="alert">{state.error}</p>}
       {state.success && <p className="form-message success" role="status">{state.success}</p>}
+      {state.temporaryAccounts?.length ? <div className="temporary-password" role="status"><strong>Password sementara akun baru</strong>{state.temporaryAccounts.map((account) => <div key={account.username}><span>{account.name} · @{account.username}</span><code>{account.password}</code></div>)}<small>Password hanya ditampilkan pada hasil import ini. Sampaikan melalui jalur pribadi dan wajib diganti saat login pertama.</small></div> : null}
       {confirm ? <ConfirmFormButton label={submitLabel} options={confirm} /> : <SubmitButton>{submitLabel}</SubmitButton>}
     </form>
   );

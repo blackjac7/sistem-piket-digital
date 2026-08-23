@@ -49,7 +49,10 @@ export const academicYears = pgTable("academic_years", {
   endYear: integer("end_year").notNull(),
   isActive: boolean("is_active").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [uniqueIndex("academic_year_name_unique").on(table.name)]);
+}, (table) => [
+  uniqueIndex("academic_year_name_unique").on(table.name),
+  uniqueIndex("academic_year_active_unique").on(table.isActive).where(sql`${table.isActive} = true`),
+]);
 
 export const students = pgTable("students", {
   id: serial("id").primaryKey(),
@@ -94,7 +97,10 @@ export const users = pgTable("users", {
   passkeyPromptedAt: timestamp("passkey_prompted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [uniqueIndex("users_username_unique").on(table.username)]);
+}, (table) => [
+  uniqueIndex("users_username_unique").on(table.username),
+  uniqueIndex("users_teacher_unique").on(table.teacherId).where(sql`${table.teacherId} IS NOT NULL`),
+]);
 
 export const sessions = pgTable("sessions", {
   id: serial("id").primaryKey(),
@@ -176,6 +182,8 @@ export const attendanceRecords = pgTable("attendance_records", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
+  uniqueIndex("attendance_student_date_unique").on(table.studentId, table.attendanceDate).where(sql`${table.type} = 'SISWA' AND ${table.studentId} IS NOT NULL`),
+  uniqueIndex("attendance_teacher_date_unique").on(table.teacherId, table.attendanceDate).where(sql`${table.type} = 'GURU' AND ${table.teacherId} IS NOT NULL`),
   index("attendance_date_idx").on(table.attendanceDate),
   index("attendance_type_idx").on(table.type),
   index("attendance_class_idx").on(table.classId),

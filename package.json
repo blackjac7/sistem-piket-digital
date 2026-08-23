@@ -11,6 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:reset": "tsx scripts/reset-database.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "audit:data": "tsx scripts/audit-data-integrity.ts",
+    "repair:data": "tsx scripts/repair-data-integrity.ts",
     "sync:gform": "tsx scripts/sync-google-form.ts",
     "db:studio": "drizzle-kit studio",
     "account:recover": "tsx scripts/recover-admin.ts",

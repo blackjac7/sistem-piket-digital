@@ -100,7 +100,8 @@ async function seed() {
 
   const classRows = await db.select().from(schoolClasses).orderBy(schoolClasses.grade, schoolClasses.name);
   const currentYearStart = new Date().getMonth() >= 6 ? new Date().getFullYear() : new Date().getFullYear() - 1;
-  await db.insert(academicYears).values({ name: `${currentYearStart}/${currentYearStart + 1}`, startYear: currentYearStart, endYear: currentYearStart + 1, isActive: true }).onConflictDoNothing();
+  await db.update(academicYears).set({ isActive: false }).where(eq(academicYears.isActive, true));
+  await db.insert(academicYears).values({ name: `${currentYearStart}/${currentYearStart + 1}`, startYear: currentYearStart, endYear: currentYearStart + 1, isActive: true }).onConflictDoUpdate({ target: academicYears.name, set: { isActive: true } });
   const [activeYear] = await db.select().from(academicYears).where(eq(academicYears.isActive, true)).limit(1);
   for (const schoolClass of classRows) {
     for (let index = 1; index <= 8; index++) {

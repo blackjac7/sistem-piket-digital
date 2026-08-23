@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "attendance_student_date_unique" ON "attendance_records" USING btree ("student_id","attendance_date") WHERE "attendance_records"."type" = 'SISWA' AND "attendance_records"."student_id" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "attendance_teacher_date_unique" ON "attendance_records" USING btree ("teacher_id","attendance_date") WHERE "attendance_records"."type" = 'GURU' AND "attendance_records"."teacher_id" IS NOT NULL;

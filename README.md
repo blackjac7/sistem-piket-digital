@@ -49,6 +49,18 @@ Buka `http://localhost:3000`.
 
 ## Audit dan sinkronisasi Google Form
 
+Periksa kesiapan seluruh relasi data sebelum analisis:
+
+```powershell
+npm run audit:data
+```
+
+Jika audit menemukan enrollment tahun ajaran aktif yang hilang atau outcome yang tidak sesuai status siswa, jalankan perbaikan aman berikut. Perintah ini tidak menghapus riwayat atau catatan absensi:
+
+```powershell
+npm run repair:data
+```
+
 Simpan ekspor Google Form sebagai `.csv` atau `.csv.zip` di satu folder, misalnya `data-gform/`. Jalankan audit tanpa mengubah database:
 
 ```powershell

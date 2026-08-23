@@ -7,6 +7,7 @@ import { GripVertical, LockKeyhole, Pencil } from "lucide-react";
 import { useMemo, useState, useTransition } from "react";
 import { deleteScheduleAction, moveScheduleAction } from "@/app/actions";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { MutationRequestInput } from "@/components/mutation-request-input";
 
 type ScheduleItem = {
   id: number;
@@ -30,7 +31,7 @@ function ScheduleEntry({ item, dayLabel, disabled, editMode }: { item: ScheduleI
     <button className="schedule-drag-handle" type="button" aria-label={`Pindahkan jadwal ${item.teacher}`} title={editMode ? "Seret untuk memindahkan jadwal" : "Aktifkan mode edit terlebih dahulu"} disabled={disabled || !editMode} {...attributes} {...listeners}><GripVertical aria-hidden="true" /></button>
     <span className="avatar">{initials(item.teacher)}</span>
     <div><strong>{item.teacher}</strong><small>{item.start.slice(0, 5)}–{item.end.slice(0, 5)}</small></div>
-    <form action={deleteScheduleAction}><input type="hidden" name="id" value={item.id} /><ConfirmSubmitButton label={`Hapus jadwal ${item.teacher}`} title="Hapus jadwal piket?" description="Jadwal akan langsung hilang dari penugasan mingguan." message={`Hapus jadwal ${item.teacher} pada hari ${dayLabel}?`} confirmLabel="Hapus jadwal" /></form>
+    <form action={deleteScheduleAction}><MutationRequestInput /><input type="hidden" name="id" value={item.id} /><ConfirmSubmitButton label={`Hapus jadwal ${item.teacher}`} title="Hapus jadwal piket?" description="Jadwal akan langsung hilang dari penugasan mingguan." message={`Hapus jadwal ${item.teacher} pada hari ${dayLabel}?`} confirmLabel="Hapus jadwal" /></form>
   </div>;
 }
 
@@ -78,7 +79,7 @@ export function ScheduleBoard({ schedules, days }: { schedules: ScheduleItem[]; 
     const previousWeekday = item.weekday;
     setItems((current) => current.map((entry) => entry.id === itemId ? { ...entry, weekday: targetWeekday } : entry));
     startTransition(async () => {
-      const result = await moveScheduleAction(itemId, targetWeekday);
+      const result = await moveScheduleAction(itemId, targetWeekday, crypto.randomUUID());
       if (result.error) {
         setItems((current) => current.map((entry) => entry.id === itemId ? { ...entry, weekday: previousWeekday } : entry));
         setError(result.error);

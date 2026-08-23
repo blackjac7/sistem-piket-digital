@@ -64,6 +64,20 @@
       "when": 1787147756668,
       "tag": "0008_youthful_sir_ram",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787520604878,
+      "tag": "0009_dizzy_starfox",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787521852453,
+      "tag": "0010_thin_bullseye",
+      "breakpoints": true
     }
   ]
 }
