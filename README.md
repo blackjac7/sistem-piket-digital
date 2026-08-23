@@ -12,7 +12,7 @@ Aplikasi operasional sekolah berbasis Next.js, TypeScript, PostgreSQL, dan Drizz
 - Akun Admin IT: `admin` / `SMPYakin#2026`.
 - Akun Wakasek Kurikulum: `kurikulum` / `SMPYakin#2026`.
 - Akun guru piket awal: `sitihumairoh`, `intanmaharani`, `megawati`, `wiwirohayati`, dan `umisultra`, dengan kata sandi sementara yang sama.
-- 23 catatan absensi guru hasil migrasi 18 respons Google Form; respons ganda pada tanggal yang sama diringkas memakai respons terakhir.
+- Seed awal menyertakan 23 catatan absensi guru dari data lama. Ekspor Google Form terbaru dapat diaudit dan diselaraskan dengan `npm run sync:gform` tanpa menggandakan catatan yang sudah ada.
 
 Seluruh akun awal wajib membuat kata sandi pribadi setelah login pertama. Kata sandi sementara hanya dipakai untuk aktivasi awal.
 
@@ -46,6 +46,22 @@ Seluruh akun awal wajib membuat kata sandi pribadi setelah login pertama. Kata s
    ```
 
 Buka `http://localhost:3000`.
+
+## Audit dan sinkronisasi Google Form
+
+Simpan ekspor Google Form sebagai `.csv` atau `.csv.zip` di satu folder, misalnya `data-gform/`. Jalankan audit tanpa mengubah database:
+
+```powershell
+npm run sync:gform -- data-gform
+```
+
+Gunakan `--json` untuk melihat rincian per file, duplikat sumber, konflik status, referensi yang tidak cocok, serta jumlah data yang belum ada. Jika audit bersih, terapkan sinkronisasi dalam satu transaksi:
+
+```powershell
+npm run sync:gform -- data-gform --apply
+```
+
+Sinkronisasi bersifat idempotent: identitas absensi memakai jenis orang, ID siswa/guru, tanggal, dan status. Jika satu form dikirim ulang pada tanggal yang sama, respons dengan `Timestamp` terbaru dianggap sebagai koreksi. Catatan aplikasi di luar Google Form tidak dihapus, dan pengiriman form juga melengkapi riwayat keterlaksanaan piket sesuai guru yang terjadwal.
 
 ## Deploy dengan Docker di Northflank
 

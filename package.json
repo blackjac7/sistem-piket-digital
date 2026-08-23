@@ -11,6 +11,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:reset": "tsx scripts/reset-database.ts",
     "db:seed": "tsx scripts/seed.ts",
+    "sync:gform": "tsx scripts/sync-google-form.ts",
     "db:studio": "drizzle-kit studio",
     "account:recover": "tsx scripts/recover-admin.ts",
     "pwa:icons": "node scripts/generate-pwa-icons.mjs"
@@ -28,6 +29,7 @@
     "date-fns": "latest",
     "drizzle-orm": "latest",
     "exceljs": "^4.4.0",
+    "jszip": "^3.10.1",
     "lucide-react": "latest",
     "next": "latest",
     "postgres": "latest",
