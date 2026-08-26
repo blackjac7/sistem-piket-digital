@@ -16,6 +16,7 @@ const privateRoutes = [
   "/dashboard/:path*",
   "/attendance/:path*",
   "/schedule/:path*",
+  "/calendar/:path*",
   "/teachers/:path*",
   "/students/:path*",
   "/classes/:path*",

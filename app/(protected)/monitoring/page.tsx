@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarCheck2, CheckCircle2, ChevronDown, Clock3, Download, GraduationCap, Layers3, ListChecks, Percent, UserRoundCheck, UsersRound } from "lucide-react";
+import { AlertTriangle, CalendarCheck2, CalendarDays, CheckCircle2, ChevronDown, Clock3, Download, GraduationCap, Layers3, ListChecks, Percent, UserRoundCheck, UsersRound } from "lucide-react";
 import { eq } from "drizzle-orm";
 import { PageHeader } from "@/components/page-header";
 import { StatusPill } from "@/components/status-pill";
@@ -40,6 +40,7 @@ export default async function MonitoringPage({ searchParams }: { searchParams: P
 
   return <>
     <PageHeader title="Pemantauan kurikulum" description={`${formatDateId(data.start)} sampai ${formatDateId(data.end)} · Fokus pada data yang memerlukan tindak lanjut.`} action={<a className="button button-primary" href={`/api/reports/monitoring?period=${period}&${attendanceFilterParams(filter).toString()}`}><Download aria-hidden="true" /> Ekspor Excel</a>} />
+    {data.summary.nonOperationalDays > 0 && <section className="calendar-guidance dashboard-calendar-notice" aria-label="Hari yang dikecualikan"><CalendarDays aria-hidden="true" /><div><strong>{data.summary.nonOperationalDays} hari non-operasional dikecualikan</strong><p>Hari tanpa operasional, libur, dan tutup darurat tidak masuk perhitungan keterlaksanaan maupun rekap absensi.</p></div><StatusPill tone="warning">Kalender diterapkan</StatusPill></section>}
 
     <details className="filter-disclosure">
       <summary><span><strong>Filter data</strong><small>{period} hari · {activeFilters ? `${activeFilters} filter aktif` : "Semua absensi"}</small></span><ChevronDown aria-hidden="true" /></summary>
@@ -82,7 +83,7 @@ function AttendanceTrend({ title, data }: { title: string; data: Array<{ date: s
 type Occurrence = Awaited<ReturnType<typeof getMonitoringData>>["occurrences"][number];
 
 function OccurrenceCard({ item }: { item: Occurrence }) {
-  return <article className="mobile-record"><div className="mobile-record-heading"><span className="avatar">{initials(item.teacherName)}</span><span><strong>{item.teacherName}</strong><small>{item.weekday} · {formatDateId(item.date)}</small></span><StatusPill tone={item.status === "SELESAI" ? "success" : item.status === "BERJALAN" ? "info" : "danger"}>{item.status === "SELESAI" ? "Selesai" : item.status === "BERJALAN" ? "Berjalan" : "Belum"}</StatusPill></div><dl className="mobile-record-details"><div><dt>Jam</dt><dd>{item.startTime.slice(0, 5)}-{item.endTime.slice(0, 5)}</dd></div><div><dt>Aktivitas</dt><dd>{item.attendanceCount} catatan</dd></div></dl><p className="mobile-record-note">{item.completedAt ? `Diselesaikan ${formatDateTimeId(item.completedAt)}` : "Belum ada waktu penyelesaian"}</p></article>;
+  return <article className="mobile-record"><div className="mobile-record-heading"><span className="avatar">{initials(item.teacherName)}</span><span><strong>{item.teacherName}</strong><small>{item.weekday} · {formatDateId(item.date)}</small></span><StatusPill tone={item.status === "SELESAI" ? "success" : item.status === "BERJALAN" ? "info" : "danger"}>{item.status === "SELESAI" ? "Selesai" : item.status === "BERJALAN" ? "Berjalan" : "Belum"}</StatusPill></div><dl className="mobile-record-details"><div><dt>Jam</dt><dd>{item.startTime.slice(0, 5)}-{item.endTime.slice(0, 5)}</dd></div><div><dt>Aktivitas</dt><dd>{item.attendanceCount} catatan</dd></div></dl><p className="mobile-record-note">{item.calendarTitle ? `${item.calendarTitle} · ` : ""}{item.completedAt ? `Diselesaikan ${formatDateTimeId(item.completedAt)}` : "Belum ada waktu penyelesaian"}</p></article>;
 }
 
 function OccurrenceHistory({ items, remainingItems }: { items: Occurrence[]; remainingItems: Occurrence[] }) {

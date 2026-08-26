@@ -1,16 +1,17 @@
 "use server";
 
-import { and, count, eq, inArray } from "drizzle-orm";
+import { and, count, eq, gte, inArray, lte, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db";
-import { academicYears, attendanceRecords, auditLogs, dutyCompletions, dutySchedules, passkeys, schoolClasses, sessions, studentEnrollments, students, teachers, users } from "@/db/schema";
+import { academicYears, attendanceRecords, auditLogs, dutyCompletions, dutySchedules, passkeys, schoolCalendar, schoolClasses, sessions, studentEnrollments, students, teachers, users } from "@/db/schema";
 import { createSession, deleteSession, destinationForUser, requireAdmin, requireRoles, requireUser } from "@/lib/auth";
 import { loadWorkbook } from "@/lib/excel";
 import { generateTemporaryPassword, hashPassword, needsPasswordRehash, validateNewPassword, verifyPassword } from "@/lib/password";
-import { internalErrorMessage, isUniqueViolation, reportServerError } from "@/lib/server-errors";
+import { internalErrorMessage, isExclusionViolation, isUniqueViolation, reportServerError } from "@/lib/server-errors";
 import { normalizeTeacherName, usernameFromTeacherName, usernamePattern } from "@/lib/teacher-names";
+import { dutyWeekdayForDate, getPublishedCalendarEntry, isNonOperationalCalendarStatus, isOperationalSchoolDate } from "@/lib/school-calendar";
 import { weekdayNames } from "@/lib/utils";
 
 export type ActionState = {
@@ -145,6 +146,116 @@ export async function logoutAction() {
   redirect("/login");
 }
 
+const schoolCalendarSchema = z.object({
+  startDate: z.string().date("Tanggal mulai tidak valid."),
+  endDate: z.string().date("Tanggal selesai tidak valid."),
+  status: z.enum(["LIBUR", "TUTUP_DARURAT", "KEGIATAN_KHUSUS", "HARI_PENGGANTI"]),
+  title: z.string().trim().min(2, "Nama kalender minimal 2 karakter.").max(160, "Nama kalender terlalu panjang."),
+  description: z.string().trim().max(1000, "Keterangan terlalu panjang.").optional(),
+  scheduleWeekday: z.union([z.literal(""), z.coerce.number().int().min(1).max(6)]).optional(),
+  isPublished: z.enum(["on"]).optional(),
+}).superRefine((value, context) => {
+  if (value.startDate > value.endDate) context.addIssue({ code: "custom", path: ["endDate"], message: "Tanggal selesai harus sama atau setelah tanggal mulai." });
+  if (value.status === "HARI_PENGGANTI" && !value.scheduleWeekday) context.addIssue({ code: "custom", path: ["scheduleWeekday"], message: "Pilih hari jadwal yang akan digunakan untuk hari pengganti." });
+  if (value.status !== "HARI_PENGGANTI" && value.scheduleWeekday) context.addIssue({ code: "custom", path: ["scheduleWeekday"], message: "Hari jadwal hanya digunakan untuk status Hari pengganti." });
+});
+
+const schoolCalendarIdSchema = z.coerce.number().int().positive();
+
+function revalidateCalendarImpact() {
+  for (const path of ["/calendar", "/dashboard", "/attendance", "/monitoring", "/reports"]) revalidatePath(path);
+}
+
+export async function createSchoolCalendarAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireRoles(["ADMIN", "WAKASEK_KURIKULUM"]);
+  const requestId = mutationRequestId(formData);
+  if (!requestId.success) return { error: "Formulir telah kedaluwarsa. Muat ulang halaman lalu coba kembali." };
+  const parsed = schoolCalendarSchema.safeParse({
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+    status: formData.get("status"),
+    title: formData.get("title"),
+    description: formData.get("description") || undefined,
+    scheduleWeekday: formData.get("scheduleWeekday") || "",
+    isPublished: formData.get("isPublished") || undefined,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message || "Data kalender tidak valid." };
+  const published = parsed.data.isPublished === "on";
+  const overlapping = await db.select({ id: schoolCalendar.id, title: schoolCalendar.title, startDate: schoolCalendar.startDate, endDate: schoolCalendar.endDate }).from(schoolCalendar).where(and(
+    eq(schoolCalendar.isActive, true),
+    eq(schoolCalendar.isPublished, true),
+    lte(schoolCalendar.startDate, parsed.data.endDate),
+    gte(schoolCalendar.endDate, parsed.data.startDate),
+  )).limit(1);
+  if (overlapping[0]) return { error: `Rentang tanggal bertabrakan dengan "${overlapping[0].title}" (${overlapping[0].startDate} sampai ${overlapping[0].endDate}).` };
+
+  try {
+    await db.transaction(async (tx) => {
+      const [created] = await tx.insert(schoolCalendar).values({
+        startDate: parsed.data.startDate,
+        endDate: parsed.data.endDate,
+        status: parsed.data.status,
+        title: parsed.data.title,
+        description: parsed.data.description || null,
+        scheduleWeekday: parsed.data.status === "HARI_PENGGANTI" ? Number(parsed.data.scheduleWeekday) : null,
+        isPublished: published,
+        publishedAt: published ? new Date() : null,
+        createdBy: user.id,
+      }).returning({ id: schoolCalendar.id });
+      await tx.insert(auditLogs).values({ requestId: requestId.data, userId: user.id, action: "CREATE", entity: "SCHOOL_CALENDAR", entityId: String(created.id), description: `${user.name} menambahkan kalender ${parsed.data.title} untuk ${parsed.data.startDate} sampai ${parsed.data.endDate}${published ? " dan mempublikasikannya" : " sebagai draf"}.` });
+    });
+  } catch (error) {
+    if (isUniqueViolation(error, "audit_logs_request_id_unique")) return { success: "Permintaan kalender ini sudah diproses." };
+    if (isExclusionViolation(error, "school_calendar_published_no_overlap")) return { error: "Tanggal tersebut sudah memiliki agenda kalender yang dipublikasikan. Muat ulang halaman sebelum mencoba lagi." };
+    return { error: internalErrorMessage(reportServerError("create-school-calendar", error)) };
+  }
+  revalidateCalendarImpact();
+  return { success: published ? "Kalender berhasil disimpan dan dipublikasikan." : "Kalender berhasil disimpan sebagai draf." };
+}
+
+export async function publishSchoolCalendarAction(formData: FormData) {
+  const user = await requireRoles(["ADMIN", "WAKASEK_KURIKULUM"]);
+  const requestId = mutationRequestId(formData);
+  const id = schoolCalendarIdSchema.safeParse(formData.get("id"));
+  if (!requestId.success || !id.success) return;
+  const [entry] = await db.select().from(schoolCalendar).where(and(eq(schoolCalendar.id, id.data), eq(schoolCalendar.isActive, true))).limit(1);
+  if (!entry || entry.isPublished) return;
+  const overlapping = await db.select({ id: schoolCalendar.id, title: schoolCalendar.title }).from(schoolCalendar).where(and(
+    eq(schoolCalendar.isActive, true), eq(schoolCalendar.isPublished, true), ne(schoolCalendar.id, id.data),
+    lte(schoolCalendar.startDate, entry.endDate), gte(schoolCalendar.endDate, entry.startDate),
+  )).limit(1);
+  if (overlapping[0]) return;
+  try {
+    await db.transaction(async (tx) => {
+      await tx.update(schoolCalendar).set({ isPublished: true, publishedAt: new Date(), updatedAt: new Date() }).where(and(eq(schoolCalendar.id, id.data), eq(schoolCalendar.isActive, true), eq(schoolCalendar.isPublished, false)));
+      await tx.insert(auditLogs).values({ requestId: requestId.data, userId: user.id, action: "PUBLISH", entity: "SCHOOL_CALENDAR", entityId: String(id.data), description: `${user.name} mempublikasikan kalender ${entry.title}.` });
+    });
+  } catch (error) {
+    if (isUniqueViolation(error, "audit_logs_request_id_unique")) return;
+    if (isExclusionViolation(error, "school_calendar_published_no_overlap")) return;
+    reportServerError("publish-school-calendar", error);
+  }
+  revalidateCalendarImpact();
+}
+
+export async function archiveSchoolCalendarAction(formData: FormData) {
+  const user = await requireRoles(["ADMIN", "WAKASEK_KURIKULUM"]);
+  const requestId = mutationRequestId(formData);
+  const id = schoolCalendarIdSchema.safeParse(formData.get("id"));
+  if (!requestId.success || !id.success) return;
+  try {
+    await db.transaction(async (tx) => {
+      const archived = await tx.update(schoolCalendar).set({ isActive: false, isPublished: false, archivedAt: new Date(), updatedAt: new Date() }).where(and(eq(schoolCalendar.id, id.data), eq(schoolCalendar.isActive, true))).returning({ id: schoolCalendar.id, title: schoolCalendar.title });
+      if (!archived.length) return;
+      await tx.insert(auditLogs).values({ requestId: requestId.data, userId: user.id, action: "ARCHIVE", entity: "SCHOOL_CALENDAR", entityId: String(id.data), description: `${user.name} mengarsipkan kalender ${archived[0].title}. Riwayat tetap dipertahankan.` });
+    });
+  } catch (error) {
+    if (isUniqueViolation(error, "audit_logs_request_id_unique")) return;
+    reportServerError("archive-school-calendar", error);
+  }
+  revalidateCalendarImpact();
+}
+
 export async function completeDutyAction(formData: FormData) {
   const user = await requireRoles(["GURU_PIKET"]);
   if (!user.teacherId) return;
@@ -152,7 +263,9 @@ export async function completeDutyAction(formData: FormData) {
   const scheduleId = z.coerce.number().int().positive().safeParse(formData.get("scheduleId"));
   if (!requestId.success || !scheduleId.success) return;
   const today = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Jakarta" }).format(new Date());
-  const weekday = new Date(`${today}T12:00:00+07:00`).getUTCDay();
+  const calendarEntry = await getPublishedCalendarEntry(today);
+  const weekday = dutyWeekdayForDate(today, calendarEntry);
+  if (!weekday) return;
   const [schedule] = await db.select({ id: dutySchedules.id, shift: dutySchedules.shift }).from(dutySchedules).where(and(eq(dutySchedules.id, scheduleId.data), eq(dutySchedules.teacherId, user.teacherId), eq(dutySchedules.weekday, weekday), eq(dutySchedules.isActive, true))).limit(1);
   if (!schedule) return;
   await db.transaction(async (tx) => {
@@ -191,6 +304,8 @@ export async function createAttendanceAction(_: ActionState, formData: FormData)
     isConfirmed: formData.get("isConfirmed") || undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const calendarEntry = await getPublishedCalendarEntry(parsed.data.attendanceDate);
+  if (!isOperationalSchoolDate(parsed.data.attendanceDate, calendarEntry)) return { error: calendarEntry && isNonOperationalCalendarStatus(calendarEntry.status) ? `Tanggal ${parsed.data.attendanceDate} ditetapkan sebagai ${calendarEntry.title}. Pencatatan absensi operasional tidak diperlukan.` : "Tanggal tersebut bukan hari operasional sekolah. Gunakan Kegiatan khusus atau Hari pengganti pada kalender sekolah jika sekolah tetap masuk." };
   if (parsed.data.type === "SISWA" && parsed.data.status === "DINAS") return { error: "Status Dinas hanya dapat digunakan untuk absensi guru." };
   const parsedPersonIds = z.array(z.coerce.number().int().positive()).min(1).max(100).safeParse(formData.getAll("personId"));
   if (!parsedPersonIds.success) return { error: `Pilih 1-100 ${parsed.data.type === "SISWA" ? "siswa" : "guru"} yang valid.` };
@@ -237,6 +352,7 @@ export async function createAttendanceAction(_: ActionState, formData: FormData)
   }
   revalidatePath("/dashboard");
   revalidatePath("/attendance");
+  revalidatePath("/monitoring");
   revalidatePath("/reports");
   return { success: `${people.length} ${parsed.data.type === "SISWA" ? "siswa" : "guru"} berhasil dicatat sebagai ${parsed.data.status}.` };
 }

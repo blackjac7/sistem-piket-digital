@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ArrowUpCircle, BarChart3, CalendarDays, ClipboardCheck, Fingerprint, GraduationCap, LayoutDashboard, LineChart, Menu, UserCog, UserRoundCheck, UsersRound } from "lucide-react";
+import { ArrowUpCircle, BarChart3, CalendarDays, CalendarRange, ClipboardCheck, Fingerprint, GraduationCap, LayoutDashboard, LineChart, Menu, UserCog, UserRoundCheck, UsersRound } from "lucide-react";
 import { AppDialog } from "./app-dialog";
 
 const items = [
@@ -11,6 +11,7 @@ const items = [
   { href: "/monitoring", label: "Pemantauan piket", mobileLabel: "Pantau", icon: LineChart, roles: ["ADMIN", "WAKASEK_KURIKULUM"] },
   { href: "/attendance", label: "Absensi", mobileLabel: "Absensi", icon: ClipboardCheck, roles: ["ADMIN", "GURU_PIKET"] },
   { href: "/schedule", label: "Jadwal piket", mobileLabel: "Jadwal", icon: CalendarDays, adminOnly: true },
+  { href: "/calendar", label: "Kalender sekolah", mobileLabel: "Kalender", icon: CalendarRange, roles: ["ADMIN", "WAKASEK_KURIKULUM"] },
   { href: "/teachers", label: "Data guru", mobileLabel: "Guru", icon: UsersRound, adminOnly: true },
   { href: "/classes", label: "Data kelas", mobileLabel: "Kelas", icon: GraduationCap, adminOnly: true },
   { href: "/students", label: "Data siswa", mobileLabel: "Siswa", icon: UserRoundCheck, adminOnly: true },
@@ -21,9 +22,9 @@ const items = [
 ] as const;
 
 const rolePrimaryRoutes: Record<string, readonly string[]> = {
-  ADMIN: ["/dashboard", "/schedule", "/teachers", "/accounts"],
+  ADMIN: ["/dashboard", "/schedule", "/calendar", "/teachers"],
+  WAKASEK_KURIKULUM: ["/monitoring", "/calendar", "/security"],
   GURU_PIKET: ["/dashboard", "/attendance", "/reports", "/security"],
-  WAKASEK_KURIKULUM: ["/monitoring", "/security"],
   GURU: ["/dashboard", "/security"],
 };
 

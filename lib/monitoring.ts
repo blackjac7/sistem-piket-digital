@@ -2,7 +2,8 @@ import "server-only";
 
 import { and, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { attendanceRecords, dutyCompletions, dutySchedules, schoolClasses, teachers, users } from "@/db/schema";
+import { attendanceRecords, dutyCompletions, dutySchedules, schoolClasses, students, teachers, users } from "@/db/schema";
+import { dutyWeekdayForDate, excludeNonOperationalCalendarDates, findCalendarEntryForDate, getPublishedCalendarEntries, isNonOperationalCalendarStatus, isOperationalSchoolDate, type SchoolCalendarEntry } from "@/lib/school-calendar";
 import { jakartaDate, weekdayNames } from "@/lib/utils";
 
 export type MonitoringStatus = "SELESAI" | "BERJALAN" | "BELUM";
@@ -18,11 +19,16 @@ export type DutyOccurrence = {
   status: MonitoringStatus;
   completedAt: Date | null;
   attendanceCount: number;
+  calendarTitle?: string;
 };
 
 export type AttendanceAnalysisRow = {
   date: string;
   type: "SISWA" | "GURU";
+  studentId: number | null;
+  teacherId: number | null;
+  studentNumber: string | null;
+  employeeNumber: string | null;
   name: string;
   className: string | null;
   status: "SAKIT" | "IZIN" | "ALPA" | "DINAS";
@@ -56,7 +62,7 @@ export async function getMonitoringData(period = 30, filters: MonitoringFilters 
   const end = jakartaDate();
   const start = shiftDate(end, -(period - 1));
   const currentTime = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Asia/Jakarta" }).format(new Date());
-  const [schedules, completions, attendance] = await Promise.all([
+  const [schedules, completions, rawAttendance, calendarEntries] = await Promise.all([
     db.select({
       id: dutySchedules.id,
       teacherId: dutySchedules.teacherId,
@@ -78,6 +84,10 @@ export async function getMonitoringData(period = 30, filters: MonitoringFilters 
     db.select({
       date: attendanceRecords.attendanceDate,
       type: attendanceRecords.type,
+      studentId: attendanceRecords.studentId,
+      teacherId: attendanceRecords.teacherId,
+      studentNumber: students.studentNumber,
+      employeeNumber: teachers.employeeNumber,
       name: attendanceRecords.personName,
       className: schoolClasses.name,
       status: attendanceRecords.status,
@@ -85,8 +95,10 @@ export async function getMonitoringData(period = 30, filters: MonitoringFilters 
       confirmed: attendanceRecords.isConfirmed,
       recorder: users.name,
       recorderTeacherId: users.teacherId,
-    }).from(attendanceRecords).leftJoin(schoolClasses, eq(attendanceRecords.classId, schoolClasses.id)).innerJoin(users, eq(attendanceRecords.recordedBy, users.id)).where(and(gte(attendanceRecords.attendanceDate, start), lte(attendanceRecords.attendanceDate, end), filters.className ? eq(schoolClasses.name, filters.className) : undefined, filters.status ? eq(attendanceRecords.status, filters.status) : undefined, filters.type ? eq(attendanceRecords.type, filters.type) : undefined)),
+    }).from(attendanceRecords).leftJoin(schoolClasses, eq(attendanceRecords.classId, schoolClasses.id)).leftJoin(students, eq(attendanceRecords.studentId, students.id)).leftJoin(teachers, eq(attendanceRecords.teacherId, teachers.id)).innerJoin(users, eq(attendanceRecords.recordedBy, users.id)).where(and(gte(attendanceRecords.attendanceDate, start), lte(attendanceRecords.attendanceDate, end), filters.className ? eq(schoolClasses.name, filters.className) : undefined, filters.status ? eq(attendanceRecords.status, filters.status) : undefined, filters.type ? eq(attendanceRecords.type, filters.type) : undefined)),
+    getPublishedCalendarEntries(start, end),
   ]);
+  const attendance = excludeNonOperationalCalendarDates(rawAttendance, calendarEntries);
 
   const completionMap = new Map(completions.map((item) => [`${item.teacherId}:${item.dutyDate}:${item.shift}`, item.completedAt]));
   const activityMap = new Map<string, number>();
@@ -99,7 +111,9 @@ export async function getMonitoringData(period = 30, filters: MonitoringFilters 
   const occurrences: DutyOccurrence[] = [];
   const dates = enumerateDates(start, end);
   for (const date of dates) {
-    const weekday = new Date(`${date}T12:00:00+07:00`).getUTCDay();
+    const calendarEntry = findCalendarEntryForDate(date, calendarEntries as SchoolCalendarEntry[]);
+    const weekday = dutyWeekdayForDate(date, calendarEntry);
+    if (!weekday) continue;
     for (const schedule of schedules.filter((item) => {
       const activeFrom = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Jakarta" }).format(item.createdAt);
       const inactiveOn = item.inactiveAt ? new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Jakarta" }).format(item.inactiveAt) : null;
@@ -117,6 +131,7 @@ export async function getMonitoringData(period = 30, filters: MonitoringFilters 
         status: completedAt ? "SELESAI" : date === end && currentTime <= schedule.endTime.slice(0, 5) ? "BERJALAN" : "BELUM",
         completedAt,
         attendanceCount: activityMap.get(`${schedule.teacherId}:${date}`) || 0,
+        calendarTitle: calendarEntry?.title,
       });
     }
   }
@@ -125,10 +140,14 @@ export async function getMonitoringData(period = 30, filters: MonitoringFilters 
   for (const completion of completions) {
     const key = `${completion.teacherId}:${completion.dutyDate}:${completion.shift}`;
     if (occurrenceKeys.has(key)) continue;
+    const completionCalendar = findCalendarEntryForDate(completion.dutyDate, calendarEntries as SchoolCalendarEntry[]);
+    if (completionCalendar && isNonOperationalCalendarStatus(completionCalendar.status)) continue;
+    if (!isOperationalSchoolDate(completion.dutyDate, completionCalendar)) continue;
     const schedule = schedules.find((item) => item.id === completion.scheduleId)
       || schedules.find((item) => item.teacherId === completion.teacherId && item.shift === completion.shift);
     if (!schedule) continue;
-    const weekday = new Date(`${completion.dutyDate}T12:00:00+07:00`).getUTCDay();
+    const weekday = dutyWeekdayForDate(completion.dutyDate, completionCalendar);
+    if (!weekday) continue;
     occurrences.push({
       date: completion.dutyDate,
       weekday: weekdayNames[weekday] || "Hari sekolah",
@@ -140,6 +159,7 @@ export async function getMonitoringData(period = 30, filters: MonitoringFilters 
       status: "SELESAI",
       completedAt: completion.completedAt,
       attendanceCount: activityMap.get(`${completion.teacherId}:${completion.dutyDate}`) || 0,
+      calendarTitle: completionCalendar?.title,
     });
     occurrenceKeys.add(key);
   }
@@ -204,8 +224,11 @@ export async function getMonitoringData(period = 30, filters: MonitoringFilters 
   const trend = dates.slice(-14).map((date) => {
     const items = occurrences.filter((item) => item.date === date);
     const dailyAttendance = attendanceByDate.get(date) || { ...emptyStatusCounts(), total: 0 };
+    const calendarEntry = findCalendarEntryForDate(date, calendarEntries);
     return {
       date,
+      calendarTitle: calendarEntry?.title || null,
+      nonOperational: !isOperationalSchoolDate(date, calendarEntry),
       scheduled: items.length,
       completed: items.filter((item) => item.status === "SELESAI").length,
       attendanceCount: dailyAttendance.total,
@@ -244,7 +267,12 @@ export async function getMonitoringData(period = 30, filters: MonitoringFilters 
       inProgress,
       totalActivity,
       completionRate: occurrences.length ? Math.round((completed / occurrences.length) * 100) : 0,
+      nonOperationalDays: dates.filter((date) => {
+        const entry = findCalendarEntryForDate(date, calendarEntries as SchoolCalendarEntry[]);
+        return !isOperationalSchoolDate(date, entry);
+      }).length,
     },
+    calendarEntries,
   };
 }
 

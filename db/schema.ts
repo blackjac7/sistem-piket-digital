@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   date,
   index,
   integer,
@@ -21,6 +22,7 @@ export const shiftType = pgEnum("shift_type", ["PAGI", "SIANG"]);
 export const studentStatus = pgEnum("student_status", ["AKTIF", "LULUS", "PINDAH"]);
 export const studentGender = pgEnum("student_gender", ["L", "P"]);
 export const enrollmentOutcome = pgEnum("enrollment_outcome", ["AKTIF", "NAIK", "TINGGAL", "LULUS", "PINDAH"]);
+export const schoolCalendarStatus = pgEnum("school_calendar_status", ["LIBUR", "TUTUP_DARURAT", "KEGIATAN_KHUSUS", "HARI_PENGGANTI"]);
 
 export const teachers = pgTable("teachers", {
   id: serial("id").primaryKey(),
@@ -152,6 +154,35 @@ export const dutySchedules = pgTable("duty_schedules", {
   uniqueIndex("duty_schedule_active_unique").on(table.teacherId, table.weekday, table.shift).where(sql`${table.isActive} = true`),
   uniqueIndex("duty_schedule_active_day_unique").on(table.weekday).where(sql`${table.isActive} = true`),
   index("duty_schedule_lookup_idx").on(table.teacherId, table.weekday, table.shift),
+]);
+
+/**
+ * Published operational exceptions layered on top of the recurring duty
+ * schedule. The recurring schedule is intentionally never deleted when a
+ * calendar exception is added.
+ */
+export const schoolCalendar = pgTable("school_calendar", {
+  id: serial("id").primaryKey(),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  status: schoolCalendarStatus("status").notNull(),
+  title: varchar("title", { length: 160 }).notNull(),
+  description: text("description"),
+  /** For a replacement day, optionally use another recurring weekday's duty. */
+  scheduleWeekday: integer("schedule_weekday"),
+  isPublished: boolean("is_published").notNull().default(false),
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  check("school_calendar_date_order_check", sql`${table.startDate} <= ${table.endDate}`),
+  check("school_calendar_weekday_check", sql`${table.scheduleWeekday} IS NULL OR (${table.scheduleWeekday} BETWEEN 1 AND 6)`),
+  check("school_calendar_replacement_weekday_check", sql`(${table.status} = 'HARI_PENGGANTI' AND ${table.scheduleWeekday} IS NOT NULL) OR (${table.status} <> 'HARI_PENGGANTI' AND ${table.scheduleWeekday} IS NULL)`),
+  index("school_calendar_date_idx").on(table.startDate, table.endDate),
+  index("school_calendar_active_idx").on(table.isActive, table.isPublished, table.startDate),
 ]);
 
 export const dutyCompletions = pgTable("duty_completions", {

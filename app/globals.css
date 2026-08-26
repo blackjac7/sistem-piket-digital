@@ -240,6 +240,27 @@ td strong { color: var(--ink); }
 .empty-block svg { width: 28px; height: 28px; }
 .empty-block p { margin: 4px 0; font-size: 12px; }
 .empty-block a { color: var(--green); font-size: 11px; font-weight: 650; }
+.calendar-guidance { margin-bottom: 17px; padding: 14px 16px; border: 1px solid #b9d8e2; border-radius: 8px; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 12px; color: #245b70; background: #eff8fb; }
+.calendar-guidance > svg { width: 22px; height: 22px; }
+.calendar-guidance strong, .calendar-guidance p { display: block; }
+.calendar-guidance strong { font-size: 12px; }
+.calendar-guidance p { margin: 4px 0 0; color: #55717c; font-size: 10px; line-height: 1.5; }
+.dashboard-calendar-notice { margin-top: 0; }
+.calendar-layout { align-items: start; }
+.calendar-list { padding: 8px 18px 18px; display: grid; gap: 9px; }
+.calendar-entry { padding: 13px; border: 1px solid var(--line); border-radius: 7px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; background: white; }
+.calendar-entry.published { border-left: 3px solid var(--green); }
+.calendar-entry.draft { border-left: 3px solid #aeb7c2; background: #fbfcfe; }
+.calendar-entry-main { min-width: 0; }
+.calendar-entry-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.calendar-entry-title strong { font-size: 12px; }
+.calendar-entry-main p { margin: 7px 0 0; color: var(--muted); font: 10px var(--font-mono); }
+.calendar-entry-main > small { display: block; margin-top: 7px; color: var(--muted); line-height: 1.45; }
+.calendar-entry-meta { color: #8b9693 !important; font-size: 9px; }
+.calendar-entry-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.calendar-entry-actions form { display: contents; }
+.calendar-entry-actions .button { white-space: nowrap; }
+.calendar-closed-block { min-height: 300px; padding: 20px; }
 
 .split-layout { display: grid; grid-template-columns: minmax(570px, 1.1fr) minmax(540px, .9fr); gap: 17px; align-items: start; }
 .split-layout.compact-form { grid-template-columns: minmax(300px, .52fr) minmax(650px, 1.48fr); }
@@ -515,6 +536,10 @@ td strong { color: var(--ink); }
   .passkey-card { padding: 20px; grid-template-columns: 1fr; }.passkey-icon { width: 54px; height: 54px; }.onboarding-page { margin-top: 0; }
   .class-grid { grid-template-columns: 1fr; }
   .promotion-mode-picker, .excel-placement-steps { grid-template-columns: 1fr; }
+  .calendar-guidance { grid-template-columns: 30px minmax(0, 1fr); align-items: start; }
+  .calendar-guidance > .status-pill { grid-column: 1 / -1; justify-self: start; }
+  .calendar-entry { grid-template-columns: 1fr; }
+  .calendar-entry-actions { justify-content: flex-start; }
   .promotion-map label { grid-template-columns: minmax(0,1fr) 16px 90px; }
   .graduation-summary { flex-direction: column; }
   .page-header h1 { font-size: 24px; }

@@ -58,3 +58,15 @@ export function attendanceFilterParams(filter: AttendanceFilter) {
   if (filter.type) params.set("type", filter.type);
   return params;
 }
+
+export function attendanceFilterSummary(filter: AttendanceFilter) {
+  const parts: string[] = [];
+  if (filter.start || filter.end) parts.push(`Periode ${filter.start || "awal"} s.d. ${filter.end || "akhir"}`);
+  if (filter.type) parts.push(filter.type === "SISWA" ? "Jenis: siswa" : "Jenis: guru");
+  if (filter.className) parts.push(`Kelas: ${filter.className}`);
+  if (filter.status) parts.push(`Status: ${filter.status}`);
+  if (filter.confirmation) parts.push(filter.confirmation === "CONFIRMED" ? "Sudah dikonfirmasi" : "Menunggu konfirmasi");
+  if (filter.recorder) parts.push(`Pencatat: ${filter.recorder}`);
+  if (filter.query) parts.push(`Nama: ${filter.query}`);
+  return parts.length ? parts.join(" | ") : "Semua data";
+}

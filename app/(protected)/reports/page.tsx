@@ -6,7 +6,8 @@ import { db } from "@/db";
 import { attendanceRecords, auditLogs, schoolClasses, users } from "@/db/schema";
 import { formatDateId, formatDateTimeId } from "@/lib/utils";
 import { requireRoles } from "@/lib/auth";
-import { attendanceFilterParams, filterAttendance, parseAttendanceFilter, type AttendanceFilter } from "@/lib/attendance-filters";
+import { attendanceFilterParams, attendanceFilterSummary, filterAttendance, parseAttendanceFilter, type AttendanceFilter } from "@/lib/attendance-filters";
+import { excludeNonOperationalCalendarDates, getPublishedCalendarEntries } from "@/lib/school-calendar";
 
 const statuses = ["SAKIT", "IZIN", "ALPA", "DINAS"] as const;
 type StatusKey = Lowercase<(typeof statuses)[number]>;
@@ -39,7 +40,10 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     db.select({ id: auditLogs.id, action: auditLogs.action, description: auditLogs.description, createdAt: auditLogs.createdAt, user: users.name }).from(auditLogs).leftJoin(users, eq(auditLogs.userId, users.id)).orderBy(desc(auditLogs.createdAt)).limit(20),
   ]);
 
-  const filteredAttendance = filterAttendance(attendance, filter);
+  const attendanceStart = attendance[attendance.length - 1]?.date;
+  const attendanceEnd = attendance[0]?.date;
+  const calendarEntries = attendanceStart && attendanceEnd ? await getPublishedCalendarEntries(attendanceStart, attendanceEnd) : [];
+  const filteredAttendance = filterAttendance(excludeNonOperationalCalendarDates(attendance, calendarEntries), filter);
   const studentClasses = new Map<string, { summary: Summary; records: AttendanceRow[] }>();
   const teacherGroups = new Map<string, { summary: Summary; records: AttendanceRow[] }>();
   for (const record of filteredAttendance) {
@@ -54,7 +58,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const teacherEntries = [...teacherGroups.entries()].sort((a, b) => b[1].summary.total - a[1].summary.total || a[0].localeCompare(b[0], "id"));
 
   return <>
-    <PageHeader title="Rekap dan audit" description="Analisis absensi siswa dan guru dipisahkan agar tindak lanjut lebih tepat." action={<a className="button button-secondary" href={`/api/reports/xlsx${attendanceFilterParams(filter).toString() ? `?${attendanceFilterParams(filter).toString()}` : ""}`}><Download /> Unduh Excel</a>} />
+    <PageHeader title="Rekap dan audit" description={`${attendanceFilterSummary(filter)} · Analisis absensi siswa dan guru dipisahkan agar tindak lanjut lebih tepat.`} action={<a className="button button-secondary" href={`/api/reports/xlsx${attendanceFilterParams(filter).toString() ? `?${attendanceFilterParams(filter).toString()}` : ""}`}><Download /> Unduh Excel</a>} />
     <FilterBar filter={filter} classes={[...new Set(attendance.map((item) => item.className).filter((item): item is string => Boolean(item)))].sort()} recorders={[...new Set(attendance.map((item) => item.recorder))].sort()} />
     <section className="report-stats"><article><GraduationCap /><span><strong>{filteredAttendance.filter((item) => item.type === "SISWA").length}</strong>Absensi siswa</span></article><article><UsersRound /><span><strong>{filteredAttendance.filter((item) => item.type === "GURU").length}</strong>Absensi guru</span></article><article><Activity /><span><strong>{filteredAttendance.filter((item) => !item.confirmed).length}</strong>Belum dikonfirmasi</span></article><article><ShieldCheck /><span><strong>{audit.length}</strong>Aktivitas audit</span></article></section>
     <section className="report-split-grid"><article className="panel"><div className="panel-header"><div><h2><GraduationCap /> Rekap absensi siswa</h2><p>Dipisahkan per kelas dan status ketidakhadiran.</p></div></div><SummaryTable entries={classEntries} /></article><article className="panel"><div className="panel-header"><div><h2><UsersRound /> Rekap absensi guru</h2><p>Setiap guru dianalisis sebagai individu.</p></div></div><SummaryTable entries={teacherEntries} /></article></section>

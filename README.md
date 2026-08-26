@@ -114,9 +114,11 @@ Target `migration` sengaja membawa `drizzle-kit` dan folder `drizzle/`, sedangka
 - Master 22 guru dan penetapan guru piket.
 - Master 16 kelas dan pengaturan wali kelas.
 - Jadwal piket mingguan dengan tepat satu guru piket per hari.
+- Kalender sekolah untuk libur, tutup darurat, kegiatan khusus, dan hari pengganti tanpa menghapus jadwal mingguan.
 - Absensi siswa dan guru dengan status Sakit, Izin, Alpa, atau Dinas.
 - Mode absensi terpisah untuk siswa dan guru, seluruh pemilihan nama/status dilakukan dengan klik.
 - Konfirmasi tindak lanjut, dashboard harian, rekap CSV, dan audit aktivitas.
+- Ekspor Excel mengikuti filter aktif dan memuat rekap Sakit/Izin/Alpa/Dinas per siswa, per guru, per kelas, serta kalender operasional.
 - Template dan impor Excel untuk data siswa serta guru.
 - Tahun ajaran, riwayat kelas siswa, dan proses kenaikan kelas tahunan.
 
