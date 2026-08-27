@@ -1,8 +1,9 @@
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, count, desc, eq, isNotNull } from "drizzle-orm";
 import { CalendarDays } from "lucide-react";
 import { deleteAttendanceAction } from "@/app/actions";
 import { AttendanceRecordActions } from "@/components/attendance-record-actions";
 import { ClickAttendance } from "@/components/click-attendance";
+import { ConfirmAllAttendance } from "@/components/confirm-all-attendance";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { MutationRequestInput } from "@/components/mutation-request-input";
 import { PageHeader } from "@/components/page-header";
@@ -18,12 +19,14 @@ export default async function AttendancePage() {
   const today = jakartaDate();
   const todayCalendar = await getPublishedCalendarEntry(today);
   const operationalToday = isOperationalSchoolDate(today, todayCalendar);
-  const [classes, studentList, teacherList, records] = await Promise.all([
+  const [classes, studentList, teacherList, records, pendingRows] = await Promise.all([
     db.select({ id: schoolClasses.id, name: schoolClasses.name }).from(schoolClasses).where(eq(schoolClasses.isActive, true)).orderBy(schoolClasses.grade, schoolClasses.name),
     db.select({ id: students.id, name: students.name, classId: students.classId }).from(students).where(and(eq(students.isActive, true), isNotNull(students.classId))).orderBy(students.name),
     db.select({ id: teachers.id, name: teachers.name, subject: teachers.subject }).from(teachers).where(eq(teachers.isActive, true)).orderBy(teachers.name),
     db.select({ id: attendanceRecords.id, name: attendanceRecords.personName, type: attendanceRecords.type, className: schoolClasses.name, status: attendanceRecords.status, date: attendanceRecords.attendanceDate, notes: attendanceRecords.notes, confirmed: attendanceRecords.isConfirmed, recorder: users.name, createdAt: attendanceRecords.createdAt }).from(attendanceRecords).leftJoin(schoolClasses, eq(attendanceRecords.classId, schoolClasses.id)).innerJoin(users, eq(attendanceRecords.recordedBy, users.id)).orderBy(desc(attendanceRecords.attendanceDate), desc(attendanceRecords.createdAt)).limit(100),
+    db.select({ value: count() }).from(attendanceRecords).where(eq(attendanceRecords.isConfirmed, false)),
   ]);
+  const pendingCount = pendingRows[0]?.value || 0;
   const calendarEntries = records.length ? await getPublishedCalendarEntries(records[records.length - 1].date, records[0].date) : [];
   const calendarForRecord = (date: string) => findCalendarEntryForDate(date, calendarEntries);
   return <>
@@ -35,7 +38,7 @@ export default async function AttendancePage() {
         {operationalToday ? <ClickAttendance classes={classes} students={studentList.map((item) => ({ ...item, classId: item.classId! }))} teachers={teacherList} /> : <div className="empty-block calendar-closed-block"><CalendarDays aria-hidden="true" /><p>Guru piket tidak perlu mencatat absensi hari ini.</p><small>Riwayat sebelumnya tetap tersedia di sebelah.</small></div>}
       </article>
       <article className="panel data-panel">
-        <div className="panel-header"><div><h2>Riwayat absensi</h2><p>Catatan “Belum” dapat dikoreksi atau dikonfirmasi</p></div></div>
+        <div className="panel-header"><div><h2>Riwayat absensi</h2><p>Catatan “Belum” dapat dikoreksi atau dikonfirmasi</p></div><ConfirmAllAttendance pendingCount={pendingCount} /></div>
         <div className="mobile-data-view"><div className="mobile-record-list">{records.map((item) => { const calendar = calendarForRecord(item.date); const excluded = !isOperationalSchoolDate(item.date, calendar); return <article className="mobile-record" key={item.id}>
           <div className="mobile-record-heading"><span className="avatar">{item.name.split(" ").map((word) => word[0]).join("").slice(0, 2)}</span><span><strong>{item.name}</strong><small>{item.type === "SISWA" ? `Siswa · ${item.className || "Tanpa kelas"}` : "Guru"}</small></span>{excluded ? <StatusPill tone="neutral">Dikecualikan</StatusPill> : <StatusPill tone={item.status === "ALPA" ? "danger" : item.status === "SAKIT" ? "warning" : "info"}>{item.status}</StatusPill>}</div>
           <dl className="mobile-record-details"><div><dt>Tanggal</dt><dd>{formatDateId(item.date)}</dd></div><div><dt>Konfirmasi</dt><dd>{item.confirmed ? "Sudah" : "Belum"}</dd></div></dl>

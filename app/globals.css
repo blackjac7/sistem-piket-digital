@@ -300,6 +300,8 @@ td strong { color: var(--ink); }
 .attendance-record-actions form { display: contents; }
 .attendance-record-actions .button { min-height: 34px; padding: 6px 9px; }
 .attendance-action-message { width: 100%; margin-top: 7px; }
+.attendance-bulk-confirm { display: grid; justify-items: end; gap: 7px; }
+.attendance-bulk-confirm .form-message { max-width: 320px; text-align: left; }
 .edit-layout { display: grid; grid-template-columns: minmax(420px, .8fr) minmax(280px, .45fr); gap: 17px; align-items: start; }
 .teacher-summary { padding: 28px; text-align: center; }
 .avatar.large { width: 64px; height: 64px; margin: 0 auto; font-size: 16px; }
@@ -987,6 +989,8 @@ tbody tr { transition: background .12s; }
   .page-header p { max-width: 38rem; }
   .panel-header { align-items: flex-start; flex-wrap: wrap; }
   .panel-header > * { min-width: 0; }
+  .attendance-bulk-confirm { width: 100%; justify-items: stretch; }
+  .attendance-bulk-confirm .button { width: 100%; }
   .stat-grid, .analytics-stat-grid { grid-template-columns: 1fr; }
   .curriculum-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .curriculum-stat-grid .stat-card { min-height: 112px; padding: 11px; }

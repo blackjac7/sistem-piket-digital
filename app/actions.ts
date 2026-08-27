@@ -403,6 +403,44 @@ export async function confirmAttendanceAction(_: ActionState, formData: FormData
   return { success: "Catatan absensi berhasil dikonfirmasi." };
 }
 
+export async function confirmAllAttendanceAction(_: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireRoles(["ADMIN", "GURU_PIKET"]);
+  const requestId = mutationRequestId(formData);
+  if (!requestId.success) return { error: "Formulir telah kedaluwarsa. Muat ulang halaman lalu coba kembali." };
+
+  try {
+    const confirmedCount = await db.transaction(async (tx) => {
+      const updated = await tx.update(attendanceRecords)
+        .set({ isConfirmed: true, updatedAt: new Date() })
+        .where(eq(attendanceRecords.isConfirmed, false))
+        .returning({ id: attendanceRecords.id });
+      if (!updated.length) return 0;
+
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: user.id,
+        action: "CONFIRM_ALL",
+        entity: "ATTENDANCE",
+        description: `${user.name} mengonfirmasi ${updated.length} catatan absensi sekaligus.`,
+      });
+      return updated.length;
+    });
+
+    if (!confirmedCount) {
+      revalidateAttendance();
+      return { success: "Semua catatan absensi sudah dikonfirmasi." };
+    }
+    revalidateAttendance();
+    return { success: `${confirmedCount} catatan absensi berhasil dikonfirmasi sekaligus.` };
+  } catch (error) {
+    if (isUniqueViolation(error, "audit_logs_request_id_unique")) {
+      revalidateAttendance();
+      return { success: "Permintaan konfirmasi semua sudah diproses." };
+    }
+    return { error: internalErrorMessage(reportServerError("confirm-all-attendance", error)) };
+  }
+}
+
 export async function updateAttendanceStatusAction(_: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireRoles(["ADMIN", "GURU_PIKET"]);
   const requestId = mutationRequestId(formData);

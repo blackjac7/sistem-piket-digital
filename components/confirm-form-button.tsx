@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, LoaderCircle } from "lucide-react";
+import { AlertTriangle, CheckCheck, LoaderCircle } from "lucide-react";
 import { useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useOffline } from "next/offline";
@@ -13,7 +13,7 @@ export type ConfirmFormOptions = {
   confirmLabel: string;
 };
 
-export function ConfirmFormButton({ label, options }: { label: string; options: ConfirmFormOptions }) {
+export function ConfirmFormButton({ label, options, icon }: { label: string; options: ConfirmFormOptions; icon?: "check-all" }) {
   const { pending } = useFormStatus();
   const offline = useOffline();
   const [open, setOpen] = useState(false);
@@ -31,7 +31,7 @@ export function ConfirmFormButton({ label, options }: { label: string; options: 
 
   return <>
     <button className="button button-primary" type="button" disabled={pending} aria-busy={pending} onClick={requestConfirmation}>
-      {pending && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+      {pending ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : icon === "check-all" ? <CheckCheck aria-hidden="true" /> : null}
       {pending ? offline ? "Menunggu koneksi..." : "Memproses..." : label}
     </button>
     <AppDialog open={open} onClose={() => setOpen(false)} title={options.title} description={options.description} tone="danger">
