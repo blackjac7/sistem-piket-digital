@@ -1,0 +1,1 @@
+ALTER TYPE "public"."school_calendar_status" ADD VALUE 'UJIAN';
