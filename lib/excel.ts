@@ -251,7 +251,7 @@ function addAttendanceDetailSheet(workbook: ExcelJS.Workbook, sheetName: string,
 function addCalendarSheet(workbook: ExcelJS.Workbook, entries: SchoolCalendarEntry[]) {
   const sheet = workbook.addWorksheet("Kalender Operasional");
   sheet.addRow(["Mulai", "Selesai", "Status", "Agenda", "Keterangan", "Jadwal Pengganti"]);
-  const statusLabels = { LIBUR: "Libur sekolah", TUTUP_DARURAT: "Tutup darurat", KEGIATAN_KHUSUS: "Kegiatan khusus", HARI_PENGGANTI: "Hari pengganti" } as const;
+  const statusLabels = { LIBUR: "Libur sekolah", TUTUP_DARURAT: "Tutup darurat", KEGIATAN_KHUSUS: "Kegiatan khusus", HARI_PENGGANTI: "Hari pengganti", UJIAN: "Masa ujian (piket libur, absensi kertas)" } as const;
   const weekdayLabels: Record<number, string> = { 1: "Senin", 2: "Selasa", 3: "Rabu", 4: "Kamis", 5: "Jumat", 6: "Sabtu" };
   for (const entry of entries) {
     sheet.addRow([entry.startDate, entry.endDate, statusLabels[entry.status], entry.title, entry.description || "", entry.scheduleWeekday ? weekdayLabels[entry.scheduleWeekday] : "-"]);
