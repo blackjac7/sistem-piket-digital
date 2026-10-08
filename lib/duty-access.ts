@@ -235,8 +235,8 @@ export async function evaluateAttendanceAccess(input: {
     return {
       allowed: false,
       error:
-        `Tidak ada jadwal piket Anda dalam ${DUTY_FILL_WINDOW_DAYS} hari terakhir. `
-        + "Setelah melewati batas tersebut, hanya Admin IT yang dapat mengoreksi absensi.",
+        `Tidak ada jadwal piket Anda dalam ${DUTY_FILL_WINDOW_DAYS} hari terakhir. ` +
+        "Setelah melewati batas tersebut, hanya Admin IT yang dapat mengoreksi absensi.",
     };
 
   const window = windows.find((item) => item.dutyDate === date);

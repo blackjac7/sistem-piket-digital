@@ -167,14 +167,12 @@ export async function loginAction(
       updatedAt: new Date(),
     })
     .where(eq(users.id, user.id));
-  await db
-    .insert(auditLogs)
-    .values({
-      userId: user.id,
-      action: "LOGIN",
-      entity: "SESSION",
-      description: `${user.name} masuk ke sistem.`,
-    });
+  await db.insert(auditLogs).values({
+    userId: user.id,
+    action: "LOGIN",
+    entity: "SESSION",
+    description: `${user.name} masuk ke sistem.`,
+  });
   redirect(
     shouldOfferPasskey ? "/onboarding/passkey" : destinationForUser(user),
   );
@@ -226,15 +224,13 @@ export async function changeOwnPasswordAction(
       })
       .where(eq(users.id, account.id));
     await tx.delete(sessions).where(eq(sessions.userId, account.id));
-    await tx
-      .insert(auditLogs)
-      .values({
-        userId: account.id,
-        action: "CHANGE_PASSWORD",
-        entity: "USER",
-        entityId: String(account.id),
-        description: `${account.name} mengganti kata sandi akun sendiri dan mengakhiri sesi lain.`,
-      });
+    await tx.insert(auditLogs).values({
+      userId: account.id,
+      action: "CHANGE_PASSWORD",
+      entity: "USER",
+      entityId: String(account.id),
+      description: `${account.name} mengganti kata sandi akun sendiri dan mengakhiri sesi lain.`,
+    });
   });
   await createSession(account.id);
   redirect(destinationForUser({ ...account, mustChangePassword: false }));
@@ -272,16 +268,14 @@ export async function resetUserPasswordAction(
   const passwordHash = await hashPassword(temporaryPassword);
   try {
     await db.transaction(async (tx) => {
-      await tx
-        .insert(auditLogs)
-        .values({
-          requestId: requestId.data,
-          userId: admin.id,
-          action: "RESET_PASSWORD",
-          entity: "USER",
-          entityId: String(target.id),
-          description: `${admin.name} mereset kata sandi ${target.name}; seluruh sesi akun tersebut diakhiri.`,
-        });
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: admin.id,
+        action: "RESET_PASSWORD",
+        entity: "USER",
+        entityId: String(target.id),
+        description: `${admin.name} mereset kata sandi ${target.name}; seluruh sesi akun tersebut diakhiri.`,
+      });
       await tx
         .update(users)
         .set({
@@ -321,27 +315,23 @@ export async function skipPasskeyOnboardingAction() {
     .update(users)
     .set({ passkeyPromptedAt: new Date(), updatedAt: new Date() })
     .where(eq(users.id, user.id));
-  await db
-    .insert(auditLogs)
-    .values({
-      userId: user.id,
-      action: "SKIP",
-      entity: "PASSKEY_ONBOARDING",
-      description: `${user.name} memilih mengaktifkan passkey nanti.`,
-    });
+  await db.insert(auditLogs).values({
+    userId: user.id,
+    action: "SKIP",
+    entity: "PASSKEY_ONBOARDING",
+    description: `${user.name} memilih mengaktifkan passkey nanti.`,
+  });
   redirect("/dashboard");
 }
 
 export async function logoutAction() {
   const user = await requireUser({ allowPasswordChange: true });
-  await db
-    .insert(auditLogs)
-    .values({
-      userId: user.id,
-      action: "LOGOUT",
-      entity: "SESSION",
-      description: `${user.name} keluar dari sistem.`,
-    });
+  await db.insert(auditLogs).values({
+    userId: user.id,
+    action: "LOGOUT",
+    entity: "SESSION",
+    description: `${user.name} keluar dari sistem.`,
+  });
   await deleteSession();
   redirect("/login");
 }
@@ -472,16 +462,14 @@ export async function createSchoolCalendarAction(
           createdBy: user.id,
         })
         .returning({ id: schoolCalendar.id });
-      await tx
-        .insert(auditLogs)
-        .values({
-          requestId: requestId.data,
-          userId: user.id,
-          action: "CREATE",
-          entity: "SCHOOL_CALENDAR",
-          entityId: String(created.id),
-          description: `${user.name} menambahkan kalender ${parsed.data.title} untuk ${parsed.data.startDate} sampai ${parsed.data.endDate}${published ? " dan mempublikasikannya" : " sebagai draf"}.`,
-        });
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: user.id,
+        action: "CREATE",
+        entity: "SCHOOL_CALENDAR",
+        entityId: String(created.id),
+        description: `${user.name} menambahkan kalender ${parsed.data.title} untuk ${parsed.data.startDate} sampai ${parsed.data.endDate}${published ? " dan mempublikasikannya" : " sebagai draf"}.`,
+      });
     });
   } catch (error) {
     if (isUniqueViolation(error, "audit_logs_request_id_unique"))
@@ -548,16 +536,14 @@ export async function publishSchoolCalendarAction(formData: FormData) {
             eq(schoolCalendar.isPublished, false),
           ),
         );
-      await tx
-        .insert(auditLogs)
-        .values({
-          requestId: requestId.data,
-          userId: user.id,
-          action: "PUBLISH",
-          entity: "SCHOOL_CALENDAR",
-          entityId: String(id.data),
-          description: `${user.name} mempublikasikan kalender ${entry.title}.`,
-        });
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: user.id,
+        action: "PUBLISH",
+        entity: "SCHOOL_CALENDAR",
+        entityId: String(id.data),
+        description: `${user.name} mempublikasikan kalender ${entry.title}.`,
+      });
     });
   } catch (error) {
     if (isUniqueViolation(error, "audit_logs_request_id_unique")) return;
@@ -591,16 +577,14 @@ export async function archiveSchoolCalendarAction(formData: FormData) {
         )
         .returning({ id: schoolCalendar.id, title: schoolCalendar.title });
       if (!archived.length) return;
-      await tx
-        .insert(auditLogs)
-        .values({
-          requestId: requestId.data,
-          userId: user.id,
-          action: "ARCHIVE",
-          entity: "SCHOOL_CALENDAR",
-          entityId: String(id.data),
-          description: `${user.name} mengarsipkan kalender ${archived[0].title}. Riwayat tetap dipertahankan.`,
-        });
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: user.id,
+        action: "ARCHIVE",
+        entity: "SCHOOL_CALENDAR",
+        entityId: String(id.data),
+        description: `${user.name} mengarsipkan kalender ${archived[0].title}. Riwayat tetap dipertahankan.`,
+      });
     });
   } catch (error) {
     if (isUniqueViolation(error, "audit_logs_request_id_unique")) return;
@@ -654,16 +638,14 @@ export async function completeDutyAction(formData: FormData) {
       .onConflictDoNothing()
       .returning({ id: dutyCompletions.id });
     if (!inserted.length) return;
-    await tx
-      .insert(auditLogs)
-      .values({
-        requestId: requestId.data,
-        userId: user.id,
-        action: "COMPLETE",
-        entity: "DUTY",
-        entityId: String(schedule.id),
-        description: `${user.name} menandai tugas piket ${today} selesai.`,
-      });
+    await tx.insert(auditLogs).values({
+      requestId: requestId.data,
+      userId: user.id,
+      action: "COMPLETE",
+      entity: "DUTY",
+      entityId: String(schedule.id),
+      description: `${user.name} menandai tugas piket ${today} selesai.`,
+    });
   });
   revalidatePath("/dashboard");
   revalidatePath("/monitoring");
@@ -1379,16 +1361,14 @@ export async function replaceStudentRosterAction(
             },
           });
       }
-      await tx
-        .insert(auditLogs)
-        .values({
-          requestId: requestId.data,
-          userId: user.id,
-          action: "REPLACE",
-          entity: "STUDENT_ROSTER",
-          entityId: String(parsed.data.classId),
-          description: `Memperbarui daftar ${names.length} siswa dalam satu kelas.`,
-        });
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: user.id,
+        action: "REPLACE",
+        entity: "STUDENT_ROSTER",
+        entityId: String(parsed.data.classId),
+        description: `Memperbarui daftar ${names.length} siswa dalam satu kelas.`,
+      });
     });
   } catch (error) {
     if (isUniqueViolation(error, "audit_logs_request_id_unique"))
@@ -1437,16 +1417,14 @@ export async function deleteAttendanceAction(formData: FormData) {
         .where(eq(attendanceRecords.id, id.data))
         .returning({ id: attendanceRecords.id });
       if (!deleted.length) return;
-      await tx
-        .insert(auditLogs)
-        .values({
-          requestId: requestId.data,
-          userId: user.id,
-          action: "DELETE",
-          entity: "ATTENDANCE",
-          entityId: String(id.data),
-          description: `Menghapus catatan ketidakhadiran #${id.data}.`,
-        });
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: user.id,
+        action: "DELETE",
+        entity: "ATTENDANCE",
+        entityId: String(id.data),
+        description: `Menghapus catatan ketidakhadiran #${id.data}.`,
+      });
     });
   } catch (error) {
     if (isUniqueViolation(error, "audit_logs_request_id_unique")) return;
@@ -1573,16 +1551,14 @@ export async function setDutyTeacherAction(
   let temporaryPassword: string | undefined;
   try {
     await db.transaction(async (tx) => {
-      await tx
-        .insert(auditLogs)
-        .values({
-          requestId: requestId.data,
-          userId: admin.id,
-          action: "UPDATE",
-          entity: "TEACHER",
-          entityId: String(teacher.id),
-          description: `${teacher.name} ditetapkan sebagai guru piket dengan username @${parsed.data.username}.`,
-        });
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: admin.id,
+        action: "UPDATE",
+        entity: "TEACHER",
+        entityId: String(teacher.id),
+        description: `${teacher.name} ditetapkan sebagai guru piket dengan username @${parsed.data.username}.`,
+      });
       await tx
         .update(teachers)
         .set({ isDutyTeacher: true, updatedAt: new Date() })
@@ -1601,16 +1577,14 @@ export async function setDutyTeacherAction(
       } else {
         temporaryPassword = generateTemporaryPassword();
         const passwordHash = await hashPassword(temporaryPassword);
-        await tx
-          .insert(users)
-          .values({
-            teacherId: teacher.id,
-            name: teacher.name,
-            username: parsed.data.username,
-            passwordHash,
-            role: "GURU_PIKET",
-            mustChangePassword: true,
-          });
+        await tx.insert(users).values({
+          teacherId: teacher.id,
+          name: teacher.name,
+          username: parsed.data.username,
+          passwordHash,
+          role: "GURU_PIKET",
+          mustChangePassword: true,
+        });
       }
     });
   } catch (error) {
@@ -1682,16 +1656,14 @@ export async function removeDutyTeacherAction(
 
   try {
     await db.transaction(async (tx) => {
-      await tx
-        .insert(auditLogs)
-        .values({
-          requestId: requestId.data,
-          userId: admin.id,
-          action: "DEACTIVATE",
-          entity: "TEACHER",
-          entityId: String(teacher.id),
-          description: `Melepas status guru piket ${teacher.name}, menonaktifkan akun operasional, dan menutup jadwal aktifnya.`,
-        });
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: admin.id,
+        action: "DEACTIVATE",
+        entity: "TEACHER",
+        entityId: String(teacher.id),
+        description: `Melepas status guru piket ${teacher.name}, menonaktifkan akun operasional, dan menutup jadwal aktifnya.`,
+      });
       await tx
         .update(teachers)
         .set({ isDutyTeacher: false, updatedAt: now })
@@ -1768,16 +1740,14 @@ export async function updateTeacherAction(
         .update(users)
         .set({ name, updatedAt: new Date() })
         .where(eq(users.teacherId, id.data));
-      await tx
-        .insert(auditLogs)
-        .values({
-          requestId: requestId.data,
-          userId: user.id,
-          action: "UPDATE",
-          entity: "TEACHER",
-          entityId: String(id.data),
-          description: `Memperbarui data guru ${name}.`,
-        });
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: user.id,
+        action: "UPDATE",
+        entity: "TEACHER",
+        entityId: String(id.data),
+        description: `Memperbarui data guru ${name}.`,
+      });
     });
   } catch (error) {
     if (error instanceof Error && error.message === "GURU_NOT_FOUND")
@@ -1848,23 +1818,19 @@ export async function createScheduleAction(
     return { error: "Hari tersebut sudah memiliki guru piket." };
   try {
     await db.transaction(async (tx) => {
-      await tx
-        .insert(auditLogs)
-        .values({
-          requestId: requestId.data,
-          userId: user.id,
-          action: "CREATE",
-          entity: "SCHEDULE",
-          description: `Menambahkan jadwal piket untuk ${teacher[0].name}.`,
-        });
-      await tx
-        .insert(dutySchedules)
-        .values({
-          ...parsed.data,
-          shift: "PAGI",
-          startTime: `${parsed.data.startTime}:00`,
-          endTime: `${parsed.data.endTime}:00`,
-        });
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: user.id,
+        action: "CREATE",
+        entity: "SCHEDULE",
+        description: `Menambahkan jadwal piket untuk ${teacher[0].name}.`,
+      });
+      await tx.insert(dutySchedules).values({
+        ...parsed.data,
+        shift: "PAGI",
+        startTime: `${parsed.data.startTime}:00`,
+        endTime: `${parsed.data.endTime}:00`,
+      });
     });
   } catch (error) {
     if (isUniqueViolation(error, "audit_logs_request_id_unique"))
@@ -1894,16 +1860,14 @@ export async function deleteScheduleAction(formData: FormData) {
         )
         .returning({ id: dutySchedules.id });
       if (!updated.length) return;
-      await tx
-        .insert(auditLogs)
-        .values({
-          requestId: requestId.data,
-          userId: user.id,
-          action: "DEACTIVATE",
-          entity: "SCHEDULE",
-          entityId: String(id.data),
-          description: `Menonaktifkan jadwal piket #${id.data} tanpa menghapus riwayat.`,
-        });
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: user.id,
+        action: "DEACTIVATE",
+        entity: "SCHEDULE",
+        entityId: String(id.data),
+        description: `Menonaktifkan jadwal piket #${id.data} tanpa menghapus riwayat.`,
+      });
     });
   } catch (error) {
     if (isUniqueViolation(error, "audit_logs_request_id_unique")) return;
@@ -1973,16 +1937,14 @@ export async function moveScheduleAction(
 
   try {
     await db.transaction(async (tx) => {
-      await tx
-        .insert(auditLogs)
-        .values({
-          requestId: requestId.data,
-          userId: user.id,
-          action: "UPDATE",
-          entity: "SCHEDULE",
-          entityId: String(schedule.id),
-          description: `Memindahkan jadwal piket ${schedule.teacher} dari ${weekdayNames[schedule.weekday]} ke ${weekdayNames[parsedWeekday.data]}.`,
-        });
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: user.id,
+        action: "UPDATE",
+        entity: "SCHEDULE",
+        entityId: String(schedule.id),
+        description: `Memindahkan jadwal piket ${schedule.teacher} dari ${weekdayNames[schedule.weekday]} ke ${weekdayNames[parsedWeekday.data]}.`,
+      });
       const updated = await tx
         .update(dutySchedules)
         .set({ weekday: parsedWeekday.data })
@@ -2058,16 +2020,14 @@ export async function updateHomeroomAction(
         )
         .returning({ id: schoolClasses.id, name: schoolClasses.name });
       if (!updated.length) return false;
-      await tx
-        .insert(auditLogs)
-        .values({
-          requestId: requestId.data,
-          userId: user.id,
-          action: "UPDATE",
-          entity: "CLASS",
-          entityId: String(classId.data),
-          description: `Memperbarui wali kelas ${updated[0].name}.`,
-        });
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: user.id,
+        action: "UPDATE",
+        entity: "CLASS",
+        entityId: String(classId.data),
+        description: `Memperbarui wali kelas ${updated[0].name}.`,
+      });
       return true;
     });
     if (!changed)
@@ -2221,15 +2181,13 @@ export async function importStudentsAction(
             },
           });
       }
-      await tx
-        .insert(auditLogs)
-        .values({
-          requestId: requestId.data,
-          userId: user.id,
-          action: "IMPORT",
-          entity: "STUDENT",
-          description: `Mengimpor atau memperbarui ${parsed.length} siswa dari Excel.`,
-        });
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: user.id,
+        action: "IMPORT",
+        entity: "STUDENT",
+        description: `Mengimpor atau memperbarui ${parsed.length} siswa dari Excel.`,
+      });
     });
     revalidatePath("/students");
     revalidatePath("/attendance");
@@ -2394,16 +2352,14 @@ export async function importTeachersAction(
             await tx.delete(sessions).where(eq(sessions.userId, account[0].id));
         } else if (item.isDutyTeacher && item.username) {
           const temporaryPassword = generateTemporaryPassword();
-          await tx
-            .insert(users)
-            .values({
-              teacherId,
-              name: item.name,
-              username: item.username,
-              passwordHash: await hashPassword(temporaryPassword),
-              role: "GURU_PIKET",
-              mustChangePassword: true,
-            });
+          await tx.insert(users).values({
+            teacherId,
+            name: item.name,
+            username: item.username,
+            passwordHash: await hashPassword(temporaryPassword),
+            role: "GURU_PIKET",
+            mustChangePassword: true,
+          });
           temporaryAccounts.push({
             name: item.name,
             username: item.username,
@@ -2421,15 +2377,13 @@ export async function importTeachersAction(
               ),
             );
       }
-      await tx
-        .insert(auditLogs)
-        .values({
-          requestId: requestId.data,
-          userId: user.id,
-          action: "IMPORT",
-          entity: "TEACHER",
-          description: `Mengimpor atau memperbarui ${parsed.length} guru dari Excel.`,
-        });
+      await tx.insert(auditLogs).values({
+        requestId: requestId.data,
+        userId: user.id,
+        action: "IMPORT",
+        entity: "TEACHER",
+        description: `Mengimpor atau memperbarui ${parsed.length} guru dari Excel.`,
+      });
     });
     revalidatePath("/teachers");
     revalidatePath("/schedule");
@@ -2730,14 +2684,12 @@ export async function promoteAcademicYearAction(
                 eq(studentEnrollments.academicYearId, currentYear.id),
               ),
             );
-          await tx
-            .insert(studentEnrollments)
-            .values({
-              studentId: student.id,
-              classId: targetClassId,
-              academicYearId: targetYearId,
-              outcome: "AKTIF",
-            });
+          await tx.insert(studentEnrollments).values({
+            studentId: student.id,
+            classId: targetClassId,
+            academicYearId: targetYearId,
+            outcome: "AKTIF",
+          });
         }
       }
     });
