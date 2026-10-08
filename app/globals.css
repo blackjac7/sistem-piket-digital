@@ -267,6 +267,41 @@ td strong { color: var(--ink); }
 .form-panel { position: sticky; top: 82px; }
 .form-panel .form-stack { padding: 19px; }
 .click-attendance-form { padding: 18px; display: grid; gap: 14px; }
+.date-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 7px; }
+.date-chips button { min-height: 52px; padding: 9px 11px; border: 1px solid #cfd7d3; border-radius: 6px; display: grid; gap: 3px; align-content: center; color: #46514e; background: white; text-align: left; cursor: pointer; }
+.date-chips button > span { font-size: 11px; font-weight: 700; }
+.date-chips button > small { color: #8b9693; font: 9px var(--font-mono); }
+.date-chips button:hover:not(:disabled) { border-color: #a9c7bb; background: #f8fbf9; }
+.date-chips button.active { color: var(--green); border-color: var(--green); background: var(--green-soft); box-shadow: 0 0 0 2px rgba(22,115,82,.08); }
+.date-chips button.active > small { color: var(--green); }
+.date-chips button:disabled { color: #a6aeab; border-color: #e2e6e4; background: #f5f6f5; cursor: not-allowed; }
+.date-chips button:disabled > small { color: #b3bab7; }
+.date-note { margin: 0; padding: 9px 11px; border: 1px solid #dcc7a8; border-radius: 6px; display: flex; align-items: center; gap: 8px; color: #7a5416; background: #fdf6e9; font-size: 10px; line-height: 1.5; }
+.date-note svg { width: 15px; height: 15px; flex-shrink: 0; }
+.history-note { margin: 0; padding: 10px 19px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; color: #4d5c58; background: #f7faf9; font-size: 10px; line-height: 1.5; }
+.history-note svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--blue); }
+.desktop-data-view tr.own-duty-row, .mobile-record.own-duty { background: #f4f9fc; }
+.duty-window-card { margin-bottom: 14px; border: 1px solid #9fc5d3; border-radius: 9px; background: #eef8fb; overflow: hidden; }
+.duty-window-card.completed { border-color: #9fd0b9; background: #eef9f3; }
+.duty-window-card > header { padding: 15px 18px; border-bottom: 1px solid rgba(31,74,94,.12); display: grid; grid-template-columns: 38px minmax(0,1fr) auto; align-items: center; gap: 13px; }
+.duty-window-card > header strong, .duty-window-card > header small { display: block; }
+.duty-window-card > header strong { font-size: 13px; }
+.duty-window-card > header small { margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.duty-window-list { padding: 6px 18px 14px; }
+.duty-window-list > article { padding: 11px 0; border-bottom: 1px solid rgba(31,74,94,.1); display: grid; grid-template-columns: 34px minmax(0,1fr) auto; align-items: center; gap: 10px; }
+.duty-window-list > article:last-child { border-bottom: 0; }
+.duty-window-list > article strong { display: block; font-size: 12px; }
+.duty-window-list > article small { display: block; margin-top: 3px; color: var(--muted); font: 9px var(--font-mono); }
+.duty-window-list > article form { display: contents; }
+.duty-day { width: 34px; height: 34px; border-radius: 7px; display: grid; place-items: center; align-content: center; gap: 1px; color: #20505f; background: #d7ecf4; font: 700 13px var(--font-mono); }
+.duty-day small { margin: 0; color: #4f7f8d; font-size: 7px; letter-spacing: .04em; text-transform: uppercase; }
+.duty-window-list > article.done .duty-day { color: #1c6b4d; background: #d6efe3; }
+.duty-window-card > footer { padding: 11px 18px; border-top: 1px solid rgba(31,74,94,.12); display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: #4d5c58; font-size: 10px; }
+.duty-window-card > footer svg { width: 14px; height: 14px; }
+.duty-window-card > footer span { flex: 1 1 220px; }
+.duty-window-card > footer .text-link { flex-shrink: 0; }
+.duty-window-card > .form-message { margin: 0 18px 12px; }
+.empty-block.small { min-height: 110px; }
 .attendance-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .attendance-mode > button { min-height: 74px; padding: 13px; border: 1px solid var(--line); border-radius: 7px; background: #f9faf9; display: flex; align-items: center; gap: 12px; color: var(--muted); text-align: left; cursor: pointer; }
 .attendance-mode > button > svg { width: 25px; height: 25px; }

@@ -1,10 +1,10 @@
 "use client";
 
 import { useActionState, useMemo, useRef, useState } from "react";
-import { CheckCircle2, GraduationCap, Info, Search, Stethoscope, UserRound, UsersRound, X, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, GraduationCap, Info, Search, Stethoscope, UserRound, UsersRound, X, XCircle } from "lucide-react";
 import { createAttendanceAction, type ActionState } from "@/app/actions";
 import { attendanceStatuses } from "@/lib/site-config";
-import { cn, jakartaDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { MutationRequestInput } from "./mutation-request-input";
 import { SubmitButton } from "./submit-button";
 
@@ -13,13 +13,31 @@ type Teacher = { id: number; name: string; subject: string | null };
 type Person = Student | Teacher;
 type SchoolClass = { id: number; name: string };
 
+export type AttendanceDateOption = {
+  value: string;
+  label: string;
+  hint: string;
+  /** true bila tanggal tidak dapat dipilih (mis. hari non-operasional). */
+  disabled?: boolean;
+};
+
 const statusIcons = { SAKIT: Stethoscope, IZIN: Info, ALPA: XCircle, DINAS: CheckCircle2 } as const;
 
 function normalized(value: string) {
   return value.toLocaleLowerCase("id-ID").normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
 }
 
-export function ClickAttendance({ classes, students, teachers }: { classes: SchoolClass[]; students: Student[]; teachers: Teacher[] }) {
+export function ClickAttendance({ classes, students, teachers, dates, defaultDate, scopeNote, emptyNote }: {
+  classes: SchoolClass[];
+  students: Student[];
+  teachers: Teacher[];
+  dates: AttendanceDateOption[];
+  defaultDate: string;
+  scopeNote?: string;
+  emptyNote?: string;
+}) {
+  const firstEnabled = dates.find((item) => !item.disabled)?.value || defaultDate;
+  const [attendanceDate, setAttendanceDate] = useState(firstEnabled);
   const [type, setType] = useState<"SISWA" | "GURU">("SISWA");
   const [classId, setClassId] = useState(classes[0]?.id || 0);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -55,6 +73,8 @@ export function ClickAttendance({ classes, students, teachers }: { classes: Scho
     return people.filter((person) => normalized(`${person.name} ${"subject" in person ? person.subject || "" : ""}`).includes(keyword));
   }, [people, query]);
   const selectedPeople = people.filter((person) => selectedIdSet.has(person.id));
+  const selectedDate = dates.find((item) => item.value === attendanceDate);
+  const isBackfill = Boolean(selectedDate && selectedDate.value !== defaultDate);
 
   function changeType(next: "SISWA" | "GURU") {
     setType(next);
@@ -72,7 +92,16 @@ export function ClickAttendance({ classes, students, teachers }: { classes: Scho
     <input type="hidden" name="type" value={type} />
     {selectedIds.map((id) => <input key={id} type="hidden" name="personId" value={id} />)}
     <input type="hidden" name="status" value={status} />
-    <input type="hidden" name="attendanceDate" value={jakartaDate()} />
+    <input type="hidden" name="attendanceDate" value={attendanceDate} />
+
+    <section className="click-step">
+      <header><span>1</span><div><strong>Pilih tanggal absensi</strong><small>{scopeNote || "Absensi dapat diisi untuk jadwal piket Anda sendiri"}</small></div></header>
+      <div className="date-chips" role="group" aria-label="Pilih tanggal absensi">
+        {dates.map((item) => <button type="button" key={item.value} disabled={item.disabled} aria-pressed={attendanceDate === item.value} className={cn(attendanceDate === item.value && "active")} onClick={() => { setAttendanceDate(item.value); setSelectedIds([]); }}><span>{item.label}</span><small>{item.hint}</small></button>)}
+      </div>
+      {!dates.length && <div className="roster-empty"><CalendarClock aria-hidden="true" /><strong>Tidak ada tanggal yang dapat diisi</strong><small>{emptyNote || "Hubungi Admin IT bila jadwal piket Anda belum sesuai."}</small></div>}
+      {isBackfill && <p className="date-note" role="status"><CalendarClock aria-hidden="true" /> Mengisi absensi susulan untuk <strong>{selectedDate?.label}</strong>. Pastikan datanya sesuai kondisi hari tersebut.</p>}
+    </section>
 
     <div className="attendance-mode" role="group" aria-label="Jenis absensi">
       <button type="button" aria-pressed={type === "SISWA"} className={cn(type === "SISWA" && "active")} onClick={() => changeType("SISWA")}><GraduationCap aria-hidden="true" /><span><strong>Absensi siswa</strong><small>Pilih satu atau beberapa siswa</small></span></button>
@@ -80,12 +109,12 @@ export function ClickAttendance({ classes, students, teachers }: { classes: Scho
     </div>
 
     {type === "SISWA" && <section className="click-step">
-      <header><span>1</span><div><strong>Pilih kelas</strong><small>{classes.length} kelas tersedia</small></div></header>
+      <header><span>2</span><div><strong>Pilih kelas</strong><small>{classes.length} kelas tersedia</small></div></header>
       <div className="class-chips" role="group" aria-label="Pilih kelas">{classes.map((item) => <button type="button" aria-pressed={classId === item.id} key={item.id} className={cn(classId === item.id && "active")} onClick={() => { setClassId(item.id); setSelectedIds([]); setQuery(""); }}>{item.name}</button>)}</div>
     </section>}
 
     <section className="click-step person-step" ref={personStepRef}>
-      <header><span>{type === "SISWA" ? "2" : "1"}</span><div><strong>Pilih {type === "SISWA" ? "siswa" : "guru"}</strong><small>{people.length} nama tersedia · Bisa pilih satu atau beberapa</small></div></header>
+      <header><span>{type === "SISWA" ? "3" : "2"}</span><div><strong>Pilih {type === "SISWA" ? "siswa" : "guru"}</strong><small>{people.length} nama tersedia · Bisa pilih satu atau beberapa</small></div></header>
       <label className="person-search input-icon"><Search aria-hidden="true" /><input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Cari nama ${type === "SISWA" ? "siswa" : "guru"}`} aria-label={`Cari nama ${type === "SISWA" ? "siswa" : "guru"}`} autoComplete="off" /></label>
       <div className="person-picker" role="group" aria-label={`Pilih ${type === "SISWA" ? "siswa" : "guru"}`}>
         {filteredPeople.map((person) => { const selected = selectedIdSet.has(person.id); return <button type="button" aria-pressed={selected} key={person.id} className={cn(selected && "active")} onClick={() => togglePerson(person.id)}><span className="avatar" aria-hidden="true">{person.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span><span><strong>{person.name}</strong>{"subject" in person && <small>{person.subject || "Guru SMP IP YAKIN"}</small>}</span>{selected && <CheckCircle2 aria-hidden="true" />}</button>; })}
@@ -95,12 +124,12 @@ export function ClickAttendance({ classes, students, teachers }: { classes: Scho
     </section>
 
     <section className="click-step">
-      <header><span>{type === "SISWA" ? "3" : "2"}</span><div><strong>Pilih status</strong><small>Status berlaku untuk semua nama terpilih</small></div></header>
+      <header><span>{type === "SISWA" ? "4" : "3"}</span><div><strong>Pilih status</strong><small>Status berlaku untuk semua nama terpilih</small></div></header>
       <div className="status-picker" role="group" aria-label="Pilih status">{attendanceStatuses.filter((item) => type === "GURU" || item.value !== "DINAS").map(({ value, label, tone }) => { const Icon = statusIcons[value]; return <button type="button" aria-pressed={status === value} key={value} className={cn(tone, status === value && "active")} onClick={() => setStatus(value)}><Icon aria-hidden="true" /><strong>{label}</strong></button>; })}</div>
     </section>
 
     <section className="optional-area"><div><strong>Catatan tambahan</strong><small>Opsional, berlaku untuk semua nama terpilih</small></div><button type="button" aria-expanded={showNotes} className="button button-secondary small" onClick={() => setShowNotes((value) => !value)}>{showNotes ? "Sembunyikan catatan" : "Tambah catatan"}</button>{showNotes && <textarea name="notes" aria-label="Catatan tambahan" rows={2} placeholder="Contoh: surat izin diterima..." />}<label className="checkbox-field"><input name="isConfirmed" type="checkbox" checked={isConfirmed} onChange={(event) => setIsConfirmed(event.target.checked)} /><span><strong>Tandai sudah dikonfirmasi</strong><small>Gunakan setelah alasan ketidakhadiran sudah diperiksa.</small></span></label></section>
     <div aria-live="polite">{state.error && <p className="form-message error" role="alert">{state.error}</p>}{state.success && <p className="form-message success" role="status">{state.success}</p>}</div>
-    <SubmitButton className="attendance-submit" disabled={!selectedIds.length}>{selectedIds.length ? `Simpan absensi ${selectedIds.length} ${type === "SISWA" ? "siswa" : "guru"}` : `Pilih ${type === "SISWA" ? "siswa" : "guru"} terlebih dahulu`}</SubmitButton>
+    <SubmitButton className="attendance-submit" disabled={!selectedIds.length || !dates.length}>{selectedIds.length ? `Simpan absensi ${selectedIds.length} ${type === "SISWA" ? "siswa" : "guru"}` : `Pilih ${type === "SISWA" ? "siswa" : "guru"} terlebih dahulu`}</SubmitButton>
   </form>;
 }

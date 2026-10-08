@@ -2,6 +2,7 @@ import Link from "next/link";
 import { and, count, desc, eq } from "drizzle-orm";
 import { AlertCircle, ArrowRight, BarChart3, CalendarDays, CheckCircle2, ClipboardPlus, Fingerprint, GraduationCap, ShieldCheck, UserCog, UsersRound } from "lucide-react";
 import { completeDutyAction } from "@/app/actions";
+import { DutyWindowCard, type DutyWindowItem } from "@/components/duty-window-card";
 import { PageHeader } from "@/components/page-header";
 import { StatusPill } from "@/components/status-pill";
 import { SubmitButton } from "@/components/submit-button";
@@ -9,6 +10,7 @@ import { MutationRequestInput } from "@/components/mutation-request-input";
 import { db } from "@/db";
 import { attendanceRecords, dutyCompletions, dutySchedules, teachers, users } from "@/db/schema";
 import { requireRoles } from "@/lib/auth";
+import { DUTY_FILL_WINDOW_DAYS, getOpenDutyWindowsForTeacher, openWindowsForDisplay } from "@/lib/duty-access";
 import { dutyWeekdayForDate, getPublishedCalendarEntry, isOperationalSchoolDate } from "@/lib/school-calendar";
 import { formatDateId, formatDateTimeId, jakartaDate, weekdayNames } from "@/lib/utils";
 import { attendanceStatusMeta } from "@/lib/site-config";
@@ -48,6 +50,18 @@ export default async function DashboardPage() {
     { label: "Perlu konfirmasi", value: displayedPendingCount, detail: "menunggu tindak lanjut", icon: AlertCircle, tone: "red" },
   ];
   const ownDuty = user.teacherId ? todayDuty.find((item) => item.teacherId === user.teacherId) : undefined;
+  const dutyWindows = user.role === "GURU_PIKET" && user.teacherId
+    ? openWindowsForDisplay(await getOpenDutyWindowsForTeacher(user.teacherId, today), { includeCompleted: true })
+    : [];
+  const dutyWindowItems: DutyWindowItem[] = dutyWindows.map((window) => ({
+    dutyDate: window.dutyDate,
+    label: formatDateId(window.dutyDate),
+    weekdayLabel: window.weekdayLabel,
+    hint: window.dutyDate === today ? "Hari ini" : window.remainingDays === 0 ? "Hari terakhir pengisian" : `Sisa ${window.remainingDays} hari pengisian`,
+    completed: window.completed,
+    isToday: window.dutyDate === today,
+    day: window.dutyDate.slice(8, 10),
+  }));
   const quickActions = user.role === "ADMIN" ? [
     { href: "/schedule", label: "Jadwal piket", detail: "Atur guru per hari", icon: CalendarDays, tone: "blue" },
     { href: "/teachers", label: "Data guru", detail: "Kelola guru piket", icon: UsersRound, tone: "green" },
@@ -62,6 +76,7 @@ export default async function DashboardPage() {
     <PageHeader title={user.role === "ADMIN" ? "Ringkasan pengelolaan" : "Ringkasan hari ini"} description={`${formatDateId(today)} · ${calendarEntry?.title || (nonOperationalToday ? "Bukan hari operasional sekolah" : user.role === "ADMIN" ? "Data utama sistem dan guru piket" : "Kondisi operasional SMP IP YAKIN")}`} action={user.role === "ADMIN" ? <Link href="/schedule" className="button button-primary"><CalendarDays aria-hidden="true" /> Atur jadwal</Link> : nonOperationalToday ? undefined : <Link href="/attendance" className="button button-primary"><ClipboardPlus aria-hidden="true" /> Catat absensi</Link>} />
     {nonOperationalToday && <section className="calendar-guidance dashboard-calendar-notice" aria-label="Hari non-operasional"><CalendarDays aria-hidden="true" /><div><strong>{calendarEntry?.title || "Bukan hari operasional sekolah"}</strong><p>{calendarEntry?.description || "Piket dan pencatatan absensi tidak diperlukan hari ini."}</p></div><StatusPill tone="warning">Tidak operasional</StatusPill></section>}
     {user.role === "GURU_PIKET" && <section className={`duty-check-card ${ownDuty?.completedAt ? "completed" : ""}`}><span className="stat-icon green"><CheckCircle2 /></span><div><strong>{nonOperationalToday ? "Hari ini tidak ada kewajiban piket" : ownDuty ? "Tugas piket hari ini" : "Tidak ada jadwal piket hari ini"}</strong><small>{nonOperationalToday ? "Jadwal reguler tetap tersimpan dan akan berlaku kembali pada hari operasional berikutnya." : ownDuty?.completedAt ? `Sudah selesai pada ${formatDateTimeId(ownDuty.completedAt)}` : ownDuty ? "Setelah seluruh pencatatan selesai, tutup tugas dengan satu klik." : "Hubungi Admin IT jika jadwal belum sesuai."}</small></div>{ownDuty && !ownDuty.completedAt && !nonOperationalToday && <form action={completeDutyAction}><MutationRequestInput /><input type="hidden" name="scheduleId" value={ownDuty.id} /><SubmitButton pendingLabel="Menutup tugas...">Tugas piket selesai</SubmitButton></form>}{ownDuty?.completedAt && !nonOperationalToday && <StatusPill tone="success">Selesai</StatusPill>}</section>}
+    {user.role === "GURU_PIKET" && dutyWindowItems.length > 0 && <DutyWindowCard items={dutyWindowItems} windowDays={DUTY_FILL_WINDOW_DAYS} scopeNote="Anda hanya dapat mengisi absensi dan menutup tugas pada jadwal Anda sendiri." />}
     <nav className="workspace-actions" aria-label="Akses cepat">{quickActions.map(({ href, label, detail, icon: Icon, tone }) => <Link className={`workspace-action tone-${tone}`} href={href} key={href}><span><Icon aria-hidden="true" /></span><div><strong>{label}</strong><small>{detail}</small></div><ArrowRight aria-hidden="true" /></Link>)}</nav>
     <section className="stat-grid">{stats.map(({ label, value, detail, icon: Icon, tone }) => <article className={`stat-card tone-${tone}`} key={label}><span className={`stat-icon ${tone}`}><Icon /></span><div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div></article>)}</section>
     <section className="dashboard-grid">
