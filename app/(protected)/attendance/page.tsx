@@ -147,7 +147,10 @@ export default async function AttendancePage() {
     .where(
       and(
         eq(attendanceRecords.isConfirmed, false),
-        inArray(attendanceRecords.attendanceDate, scopedDates.length ? scopedDates : [today]),
+        inArray(
+          attendanceRecords.attendanceDate,
+          scopedDates.length ? scopedDates : [today],
+        ),
       ),
     );
   const pendingCount =

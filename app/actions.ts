@@ -1399,7 +1399,10 @@ export async function deleteAttendanceAction(formData: FormData) {
         .where(eq(attendanceRecords.id, id.data))
         .limit(1);
       if (!target) return;
-      const access = await evaluateAttendanceAccess({ user, date: target.date });
+      const access = await evaluateAttendanceAccess({
+        user,
+        date: target.date,
+      });
       if (!access.allowed) return;
       const deleted = await tx
         .delete(attendanceRecords)
