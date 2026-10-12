@@ -906,10 +906,6 @@ export async function createAttendanceAction(
   const access = await evaluateAttendanceAccess({
     user,
     date: parsed.data.attendanceDate,
-    people: people.map((person) => ({
-      type: parsed.data.type,
-      teacherId: person.teacherId,
-    })),
   });
   if (!access.allowed) return { error: access.error };
 
@@ -998,20 +994,12 @@ export async function confirmAttendanceAction(
   if (!id.success) return { error: "Catatan absensi tidak valid." };
 
   const [target] = await db
-    .select({
-      date: attendanceRecords.attendanceDate,
-      type: attendanceRecords.type,
-      teacherId: attendanceRecords.teacherId,
-    })
+    .select({ date: attendanceRecords.attendanceDate })
     .from(attendanceRecords)
     .where(eq(attendanceRecords.id, id.data))
     .limit(1);
   if (!target) return { error: "Catatan absensi tidak ditemukan." };
-  const access = await evaluateAttendanceAccess({
-    user,
-    date: target.date,
-    people: [{ type: target.type, teacherId: target.teacherId }],
-  });
+  const access = await evaluateAttendanceAccess({ user, date: target.date });
   if (!access.allowed) return { error: access.error };
 
   try {
@@ -1079,30 +1067,44 @@ export async function confirmAllAttendanceAction(
         "Formulir telah kedaluwarsa. Muat ulang halaman lalu coba kembali.",
     };
 
-  const [scope] = await db
-    .select({
-      date: attendanceRecords.attendanceDate,
-      type: attendanceRecords.type,
-      teacherId: attendanceRecords.teacherId,
-    })
-    .from(attendanceRecords)
-    .where(eq(attendanceRecords.isConfirmed, false))
-    .limit(1);
-  if (scope) {
-    const access = await evaluateAttendanceAccess({
-      user,
-      date: scope.date,
-      people: [{ type: scope.type, teacherId: scope.teacherId }],
-    });
-    if (!access.allowed) return { error: access.error };
+  /*
+   * Guru piket hanya boleh mengonfirmasi catatan pada tanggal jadwalnya sendiri.
+   * Tanpa batas tanggal, tombol "Konfirmasi semua" akan ikut mengunci catatan
+   * milik guru piket lain di luar jendela waktunya.
+   */
+  let scopedDates: string[] | null = null;
+  if (user.role !== "ADMIN") {
+    if (!user.teacherId)
+      return {
+        error:
+          "Akun Anda belum terhubung ke data guru piket. Hubungi Admin IT untuk melengkapi data ini.",
+      };
+    const windows = openWindowsForDisplay(
+      await getOpenDutyWindowsForTeacher(user.teacherId, jakartaDate()),
+      { includeCompleted: true },
+    );
+    scopedDates = windows.map((window) => window.dutyDate);
+    if (!scopedDates.length)
+      return {
+        error:
+          "Tidak ada jadwal piket Anda dalam jendela pengisian, sehingga tidak ada catatan yang dapat dikonfirmasi.",
+      };
   }
+
+  const scopeCondition =
+    scopedDates === null
+      ? [eq(attendanceRecords.isConfirmed, false)]
+      : [
+          eq(attendanceRecords.isConfirmed, false),
+          inArray(attendanceRecords.attendanceDate, scopedDates),
+        ];
 
   try {
     const confirmedCount = await db.transaction(async (tx) => {
       const updated = await tx
         .update(attendanceRecords)
         .set({ isConfirmed: true, updatedAt: new Date() })
-        .where(eq(attendanceRecords.isConfirmed, false))
+        .where(and(...scopeCondition))
         .returning({ id: attendanceRecords.id });
       if (!updated.length) return 0;
 
@@ -1111,7 +1113,10 @@ export async function confirmAllAttendanceAction(
         userId: user.id,
         action: "CONFIRM_ALL",
         entity: "ATTENDANCE",
-        description: `${user.name} mengonfirmasi ${updated.length} catatan absensi sekaligus.`,
+        description:
+          scopedDates === null
+            ? `${user.name} mengonfirmasi ${updated.length} catatan absensi sekaligus.`
+            : `${user.name} mengonfirmasi ${updated.length} catatan absensi pada jadwal piketnya (${scopedDates.join(", ")}).`,
       });
       return updated.length;
     });
@@ -1158,20 +1163,12 @@ export async function updateAttendanceStatusAction(
     };
 
   const [target] = await db
-    .select({
-      date: attendanceRecords.attendanceDate,
-      type: attendanceRecords.type,
-      teacherId: attendanceRecords.teacherId,
-    })
+    .select({ date: attendanceRecords.attendanceDate })
     .from(attendanceRecords)
     .where(eq(attendanceRecords.id, parsed.data.id))
     .limit(1);
   if (!target) return { error: "Catatan absensi tidak ditemukan." };
-  const access = await evaluateAttendanceAccess({
-    user,
-    date: target.date,
-    people: [{ type: target.type, teacherId: target.teacherId }],
-  });
+  const access = await evaluateAttendanceAccess({ user, date: target.date });
   if (!access.allowed) return { error: access.error };
 
   try {
@@ -1397,20 +1394,12 @@ export async function deleteAttendanceAction(formData: FormData) {
   try {
     await db.transaction(async (tx) => {
       const [target] = await tx
-        .select({
-          date: attendanceRecords.attendanceDate,
-          type: attendanceRecords.type,
-          teacherId: attendanceRecords.teacherId,
-        })
+        .select({ date: attendanceRecords.attendanceDate })
         .from(attendanceRecords)
         .where(eq(attendanceRecords.id, id.data))
         .limit(1);
       if (!target) return;
-      const access = await evaluateAttendanceAccess({
-        user,
-        date: target.date,
-        people: [{ type: target.type, teacherId: target.teacherId }],
-      });
+      const access = await evaluateAttendanceAccess({ user, date: target.date });
       if (!access.allowed) return;
       const deleted = await tx
         .delete(attendanceRecords)

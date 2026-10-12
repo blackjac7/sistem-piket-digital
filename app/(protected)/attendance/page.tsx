@@ -1,4 +1,4 @@
-import { and, count, desc, eq, isNotNull } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { CalendarDays, Info } from "lucide-react";
 import { deleteAttendanceAction } from "@/app/actions";
 import { AttendanceRecordActions } from "@/components/attendance-record-actions";
@@ -92,7 +92,6 @@ export default async function AttendancePage() {
         .from(attendanceRecords)
         .where(eq(attendanceRecords.isConfirmed, false)),
     ]);
-  const pendingCount = pendingRows[0]?.value || 0;
   const calendarEntries = records.length
     ? await getPublishedCalendarEntries(
         records[records.length - 1].date,
@@ -134,6 +133,29 @@ export default async function AttendancePage() {
       "Akun Anda belum terhubung ke data guru piket. Hubungi Admin IT.";
   }
   const formAvailable = dateOptions.length > 0;
+  const scopedDates = dateOptions.map((option) => option.value);
+
+  /*
+   * Angka pada tombol "Konfirmasi semua" harus mencerminkan catatan yang
+   * benar-benar akan dikonfirmasi akun ini. Guru piket hanya mengonfirmasi
+   * tanggal jadwalnya, sementara Admin mengonfirmasi seluruh catatan.
+   * Dihitung langsung di database agar tetap akurat walau daftar riwayat dibatasi.
+   */
+  const [scopedPendingRows] = await db
+    .select({ value: count() })
+    .from(attendanceRecords)
+    .where(
+      and(
+        eq(attendanceRecords.isConfirmed, false),
+        inArray(attendanceRecords.attendanceDate, scopedDates.length ? scopedDates : [today]),
+      ),
+    );
+  const pendingCount =
+    user.role === "GURU_PIKET"
+      ? scopedDates.length
+        ? scopedPendingRows?.value || 0
+        : 0
+      : pendingRows[0]?.value || 0;
 
   return (
     <>

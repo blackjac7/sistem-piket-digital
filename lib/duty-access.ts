@@ -167,11 +167,6 @@ export function openWindowsForDisplay(
     .sort((left, right) => (left.dutyDate < right.dutyDate ? 1 : -1));
 }
 
-type DutyAccessPerson = {
-  type: "SISWA" | "GURU";
-  teacherId: number | null;
-};
-
 export type DutyAccessReason = "ADMIN" | "TODAY" | "OWN_DUTY_DATE";
 
 export type DutyAccessDecision =
@@ -191,7 +186,8 @@ type AccessUser = {
  * - GURU_PIKET hanya boleh menyentuh tanggal dalam jendela jadwalnya sendiri:
  *   tanggal jadwal H sampai H + DUTY_FILL_WINDOW_DAYS. Setelah itu terkunci dan
  *   hanya Admin IT yang dapat mengoreksi.
- * - Bila mencatat absensi guru, hanya untuk dirinya sendiri.
+ * - Dalam jendela itu guru piket mencatat siapa pun yang tidak hadir pada hari
+ *   tersebut, baik siswa maupun guru, karena itulah tugas pengawasannya.
  * - Role lain ditolak.
  *
  * Status penutupan tugas piket tidak ikut mengunci catatan absensi; keduanya
@@ -201,7 +197,6 @@ export async function evaluateAttendanceAccess(input: {
   user: AccessUser;
   date: string;
   today?: string;
-  people?: DutyAccessPerson[];
 }): Promise<DutyAccessDecision> {
   const { user, date } = input;
   const today = input.today ?? jakartaDate();
@@ -251,19 +246,6 @@ export async function evaluateAttendanceAccess(input: {
       allowed: false,
       error: `Anda hanya dapat mengisi absensi untuk jadwal piket Anda sendiri: ${list}. Batas pengisian ${DUTY_FILL_WINDOW_DAYS} hari setelah tanggal jadwal.`,
     };
-  }
-
-  const people = input.people || [];
-  if (people.some((person) => person.type === "GURU")) {
-    const onlySelf = people
-      .filter((person) => person.type === "GURU")
-      .every((person) => person.teacherId === user.teacherId);
-    if (!onlySelf)
-      return {
-        allowed: false,
-        error:
-          "Absensi guru hanya dapat diisi untuk diri sendiri. Mintalah Admin IT mencatat absensi guru lain.",
-      };
   }
 
   return {
